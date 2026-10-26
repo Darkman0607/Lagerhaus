@@ -1,12 +1,12 @@
 /** U07: deterministic search/filter/sort for the local catalog. No stock mutations. */
 import {thresholdStatus} from './bookings.js';
 const norm=v=>String(v??'').toLocaleLowerCase('de').normalize('NFKD').replace(/[\u0300-\u036f]/g,'');
-export const DEFAULT_PREFERENCES=Object.freeze({query:'',section:'alle',category:'',location:'',kind:'',status:'',favorite:false,changed:'',sort:'name',layout:'auto'});
+export const DEFAULT_PREFERENCES=Object.freeze({query:'',section:'alle',category:'',location:'',kind:'',status:'',favorite:false,changed:'',expiry:'',sort:'name',layout:'auto'});
 export const SORTS=['name','quantity','location','changed','status'];
 export const LAYOUTS=['auto','table','cards'];
 export function normalizePreferences(raw={}){
  const r={...DEFAULT_PREFERENCES};
- for(const k of ['query','section','category','location','kind','status','changed'])if(typeof raw[k]==='string')r[k]=raw[k].slice(0,160);
+ for(const k of ['query','section','category','location','kind','status','changed','expiry'])if(typeof raw[k]==='string')r[k]=raw[k].slice(0,160);
  r.favorite=raw.favorite===true;
  r.sort=SORTS.includes(raw.sort)?raw.sort:'name';r.layout=LAYOUTS.includes(raw.layout)?raw.layout:'auto';return r;
 }
@@ -35,6 +35,8 @@ export function filterAndSort(items,pref,now=Date.now()){
   if(p.kind&&a.articleKind!==p.kind)return false;
   if(p.status&&a.status!==p.status)return false;
   if(p.favorite&&!a.favorite)return false;
+  if(p.expiry&&p.expiry!=='alle'&&a.expiry!==p.expiry)return false;
+  if(p.expiry==='alle'&&!['bald','abgelaufen'].includes(a.expiry))return false;
   if(p.changed){const days=Number(p.changed),date=Date.parse(a.updatedAt);if(!Number.isFinite(days)||!Number.isFinite(date)||date<now-days*86400000)return false;}
   return true;
  });

@@ -3,8 +3,8 @@
  * No demo inventory, no network/database telemetry.
  */
 export const DATABASE_NAME = 'lagerhaus-local';
-export const DATABASE_VERSION = 5;
-export const STORE_NAMES = Object.freeze(['articles','locations','stocks','movements','media','purchases','audit','meta','categories']);
+export const DATABASE_VERSION = 6;
+export const STORE_NAMES = Object.freeze(['articles','locations','stocks','movements','media','purchases','audit','meta','categories','lots']);
 const VALID_SOURCES = new Set(['manual','receipt','usage','correction','inventory','initial']);
 const MAX_QUANTITY = 1_000_000_000;
 
@@ -110,6 +110,11 @@ function migrate(db,tx,oldVersion){
     makeIndex(makeStore(db,tx,'movements'),'by_undo','undoOf');
     makeIndex(makeStore(db,tx,'movements'),'by_booking_type','bookType');
   }
+  if(oldVersion<6){
+    const lots=makeStore(db,tx,'lots');
+    makeIndex(lots,'by_article','articleId');
+    makeIndex(lots,'by_article_location',['articleId','locationId']);
+  }
 }
 let openPromise;
 export function openDatabase(){
@@ -196,7 +201,7 @@ export class WarehouseRepository {
     if(!VALID_SOURCES.has(source))throw new StorageError('Die Buchungsquelle ist unbekannt.','VALIDATION');
     if(typeof note!=='string'||note.length>500)throw new StorageError('Buchungsnotiz darf höchstens 500 Zeichen enthalten.','VALIDATION');
     const db=await this.ready();const at=iso(),movementId=makeId();
-    return transact(db,['articles','locations','stocks','movements','audit'],'readwrite',(tx,done)=>{
+    return transact(db,['articles','locations','stocks','movements','audit','lots'],'readwrite',(tx,done)=>{
       const articles=tx.objectStore('articles'),locations=tx.objectStore('locations'),stocks=tx.objectStore('stocks');
       const a=articles.get(articleId);
       a.onsuccess=()=>{
@@ -209,12 +214,18 @@ export class WarehouseRepository {
             const existing=lookup.result;const before=existing?.quantity||0;
             const after=Math.round((before+delta)*1000)/1000;
             if(after<0||!Number.isFinite(after)||after>MAX_QUANTITY){tx.abort();return;}
-            const current={id:existing?.id||makeId(),articleId,locationId,quantity:after,createdAt:existing?.createdAt||at,updatedAt:at,schemaVersion:DATABASE_VERSION};
-            stocks.put(current);
-            const movement={id:movementId,articleId,locationId,delta,before,after,source,note:note.trim(),createdAt:at,schemaVersion:DATABASE_VERSION};
-            tx.objectStore('movements').add(movement);
-            tx.objectStore('audit').add(activity(makeId(),'stock-adjusted',articleId,source,at,{movementId,locationId,delta,before,after}));
-            done(movement);
+            // Legacy direct-booking entry point: never silently invalidate U11 lot allocations.
+            const lotRequest=tx.objectStore('lots').index('by_article_location').getAll([articleId,locationId]);
+            lotRequest.onsuccess=()=>{
+              const allocated=Math.round(lotRequest.result.reduce((sum,lot)=>sum+lot.quantity,0)*1000)/1000;
+              if(after<allocated){tx.abort();return;}
+              const current={id:existing?.id||makeId(),articleId,locationId,quantity:after,createdAt:existing?.createdAt||at,updatedAt:at,schemaVersion:DATABASE_VERSION};
+              stocks.put(current);
+              const movement={id:movementId,articleId,locationId,delta,before,after,source,note:note.trim(),createdAt:at,schemaVersion:DATABASE_VERSION};
+              tx.objectStore('movements').add(movement);
+              tx.objectStore('audit').add(activity(makeId(),'stock-adjusted',articleId,source,at,{movementId,locationId,delta,before,after}));
+              done(movement);
+            };
           };
         };
       };

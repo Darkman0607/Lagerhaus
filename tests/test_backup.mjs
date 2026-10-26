@@ -32,12 +32,12 @@ const previous=await repository.articles();
 const invalid={...inspection,payload:{...inspection.payload,stores:{...inspection.payload.stores,stocks:[{...inspection.payload.stores.stocks[0],articleId:'11111111-1111-4111-8111-111111111111'}]}}};
 await assert.rejects(()=>restoreBackup(invalid),{code:'BACKUP'});
 assert.deepEqual(await repository.articles(),previous,'rejected restore did not change current DB');
-console.log('PASS: U10 empty setup, preferences, complete backup, SHA-256 integrity, media bytes, 9-store restore and reject rollback');
+console.log('PASS: U10 empty setup, preferences, complete backup, SHA-256 integrity, media bytes, 10-store restore and reject rollback');
 // Force a failure after a transaction starts; original data must remain intact.
 const originalTx=db.transaction.bind(db);
 db.transaction=(names,mode)=>{
  const tx=originalTx(names,mode);
- if(mode==='readwrite'&&Array.isArray(names)&&names.length===9){const store=tx.objectStore.bind(tx);tx.objectStore=(name)=>{
+ if(mode==='readwrite'&&Array.isArray(names)&&names.length===10){const store=tx.objectStore.bind(tx);tx.objectStore=(name)=>{
   const s=store(name);if(name==='media')s.add=()=>{throw new DOMException('simulated quota error','QuotaExceededError');};return s;
  };}
  return tx;

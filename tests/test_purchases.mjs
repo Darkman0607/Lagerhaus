@@ -5,7 +5,7 @@ const {repository,DATABASE_VERSION}=await import('../src/data/store.js');
 const {shoppingData,shortageSuggestions,addPurchase,editPurchase,completePurchase,reopenPurchase,archivePurchase}=await import('../src/data/purchases.js');
 const {bookStock}=await import('../src/data/bookings.js');
 const {shoppingView}=await import('../src/views/shopping.js');
-assert.equal(DATABASE_VERSION,5,'U08 must not reset/migrate DB');
+assert.equal(DATABASE_VERSION,6,'U08 must not reset/migrate DB');
 const article=await repository.addArticle({name:'Kaffee',unit:'Stück',minQuantity:5});
 const other=await repository.addArticle({name:'Schrauben',unit:'Stück',minQuantity:3});
 const place=await repository.addLocation({name:'Küche'});

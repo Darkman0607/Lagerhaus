@@ -11,6 +11,20 @@ const reason=(v,required=false)=>{if(typeof v!=='string'||v.trim().length>500||r
 const qty=(v,label='Menge')=>{const n=Number(v);if(v===''||v===null||v===undefined||!Number.isFinite(n))throw new StorageError(`${label} ist keine gültige Zahl.`,'VALIDATION');validateQuantity(n);return n;};
 const round=n=>Math.round(n*1000)/1000;
 const thresholdStatus=(quantity,limit)=>quantity<=0?'rot':limit>0&&quantity<=limit?'orange':'gruen';
+/** In the same stock transaction: take allocated quantities from oldest lot first.
+ * Unassigned stock makes up the remaining delta; no automatic expiry disposal. */
+function adjustLots(tx,articleId,locationId,delta,at,fail,done,restore=[]){
+ const req=tx.objectStore('lots').index('by_article_location').getAll([articleId,locationId]);
+ req.onsuccess=()=>{try{
+  const lots=req.result,changed=[];
+  if(restore?.length){for(const step of restore){const lot=lots.find(x=>x.id===step.id);if(!lot)throw new StorageError('Storno nicht möglich: Charge wurde inzwischen entfernt.','IN_USE');lot.quantity=round(lot.quantity-step.delta);validateQuantity(lot.quantity);tx.objectStore('lots').put({...lot,updatedAt:at});changed.push({id:lot.id,delta:-step.delta});}}
+  else if(delta<0){let toTake=-delta;const sorted=lots.filter(x=>x.quantity>0).sort((a,b)=>a.bestBefore.localeCompare(b.bestBefore)||a.createdAt.localeCompare(b.createdAt));
+   for(const lot of sorted){const take=round(Math.min(toTake,lot.quantity));if(take<=0)continue;lot.quantity=round(lot.quantity-take);tx.objectStore('lots').put({...lot,updatedAt:at});changed.push({id:lot.id,delta:-take});toTake=round(toTake-take);if(toTake<=0)break;}
+  }
+  done(changed);
+ }catch(e){fail(e);}};
+}
+
 export {thresholdStatus};
 function transaction(db,names,action){return new Promise((resolve,reject)=>{
  const tx=db.transaction(names,'readwrite');let value,issue;
@@ -53,7 +67,7 @@ export async function bookStock({articleId,locationId,type,quantity,unit,note=''
  const amount=qty(quantity,type==='correction'?'Neuer Bestand':'Buchungsmenge');
  if(type!=='correction'&&amount<=0||amount<0)throw new StorageError('Die Buchungsmenge muss positiv sein.','VALIDATION');
  note=reason(note,type==='correction');const db=await openDatabase(),at=stamp();
- return transaction(db,['articles','locations','stocks','movements','audit'],(tx,done,fail)=>{
+ return transaction(db,['articles','locations','stocks','movements','audit','lots'],(tx,done,fail)=>{
   getContext(tx,articleId,locationId,fail,(article,location,stock)=>{
    try{
     const actualUnit=unit||article.unit||'Stück';
@@ -63,15 +77,17 @@ export async function bookStock({articleId,locationId,type,quantity,unit,note=''
     if(after<0)throw new StorageError('Nicht genügend Bestand am gewählten Lagerort.','INSUFFICIENT');
     validateQuantity(after);
     if(type==='correction'&&after===before)throw new StorageError('Der korrigierte Bestand ist unverändert.','VALIDATION');
-    const updated=updateStock(tx,stock,articleId,locationId,after,at);
-    const mv=ledger(tx,article,locationId,before,after,at,{source:type==='receipt'?'receipt':type==='correction'?'inventory':'usage',bookType:type,note,enteredQuantity:amount,enteredUnit:actualUnit,undoneAt:null});
-    done({...mv,stock:updated});
+    adjustLots(tx,articleId,locationId,after-before,at,fail,lotAdjustments=>{
+     const updated=updateStock(tx,stock,articleId,locationId,after,at);
+     const mv=ledger(tx,article,locationId,before,after,at,{source:type==='receipt'?'receipt':type==='correction'?'inventory':'usage',bookType:type,note,enteredQuantity:amount,enteredUnit:actualUnit,undoneAt:null,lotAdjustments});
+     done({...mv,stock:updated});
+    });
    }catch(e){fail(e);}
   });
  });
 }
 export async function undoBooking(movementId){id(movementId,'Buchungs-ID');const db=await openDatabase(),at=stamp();
- return transaction(db,['articles','locations','stocks','movements','audit'],(tx,done,fail)=>{
+ return transaction(db,['articles','locations','stocks','movements','audit','lots'],(tx,done,fail)=>{
   const moves=tx.objectStore('movements'),r=moves.get(movementId);r.onsuccess=()=>{
    const original=r.result;
    if(!original||!['receipt','issue','usage','correction','package'].includes(original.bookType)||original.undoneAt||original.undoOf)return fail(new StorageError('Diese Buchung ist nicht stornierbar oder wurde bereits storniert.','VALIDATION'));
@@ -80,10 +96,11 @@ export async function undoBooking(movementId){id(movementId,'Buchungs-ID');const
      const before=stock?.quantity||0,after=round(before-original.delta);
      if(after<0)throw new StorageError('Storno nicht möglich: Der eingebuchte Bestand wurde bereits verwendet.','INSUFFICIENT');
      validateQuantity(after);
-     updateStock(tx,stock,article.id,location.id,after,at);
-     const reversal=ledger(tx,article,location.id,before,after,at,{source:'correction',bookType:'reversal',undoOf:movementId,note:`Storno von Buchung ${movementId}`});
-     moves.put({...original,undoneAt:at,undoMovementId:reversal.id});
-     done(reversal);
+     adjustLots(tx,article.id,location.id,after-before,at,fail,lotAdjustments=>{
+      updateStock(tx,stock,article.id,location.id,after,at);
+      const reversal=ledger(tx,article,location.id,before,after,at,{source:'correction',bookType:'reversal',undoOf:movementId,note:`Storno von Buchung ${movementId}`,lotAdjustments});
+      moves.put({...original,undoneAt:at,undoMovementId:reversal.id});done(reversal);
+     },original.delta<0?(original.lotAdjustments||[]):[]);
     }catch(e){fail(e);}
    });
   };
@@ -122,7 +139,7 @@ export async function setPackageBreakdown({articleId,locationId,sealedPacks,open
  if(!Number.isSafeInteger(sealed)||sealed<0)throw new StorageError('Verschlossene Gebinde müssen eine ganze Zahl ab 0 sein.','VALIDATION');
  const open=qty(openQuantity,'Angebrochenes Gebinde');if(open<0)throw new StorageError('Offene Menge darf nicht negativ sein.','VALIDATION');
  note=reason(note,true);const db=await openDatabase(),at=stamp();
- return transaction(db,['articles','locations','stocks','movements','audit'],(tx,done,fail)=>{
+ return transaction(db,['articles','locations','stocks','movements','audit','lots'],(tx,done,fail)=>{
   getContext(tx,articleId,locationId,fail,(article,location,stock)=>{
    try{
     if(!['consumable','food'].includes(article.articleKind))throw new StorageError('Gebindeverwaltung ist für Verbrauchsartikel und Lebensmittel vorgesehen.','VALIDATION');
@@ -131,10 +148,12 @@ export async function setPackageBreakdown({articleId,locationId,sealedPacks,open
     if(open>=capacity)throw new StorageError('Angebrochene Menge muss kleiner als ein volles Gebinde sein.','VALIDATION');
     const after=round(capacity*sealed+open);validateQuantity(after);
     const before=stock?.quantity||0;
-    const packageState={capacity,unit:article.unit,sealedPacks:sealed,openQuantity:open,estimated:!!estimated};
-    const row=updateStock(tx,stock,articleId,locationId,after,at,{packageState});
-    const movement=ledger(tx,article,locationId,before,after,at,{source:'inventory',bookType:'package',note,undoneAt:null,packageState});
-    done({...movement,stock:row});
+    const lr=tx.objectStore('lots').index('by_article_location').getAll([articleId,locationId]);
+    lr.onsuccess=()=>{if(lr.result.some(x=>x.quantity>0))return fail(new StorageError('MHD-Chargen zuerst auflösen; Gebindekorrektur ist sonst nicht eindeutig.','IN_USE'));
+     const packageState={capacity,unit:article.unit,sealedPacks:sealed,openQuantity:open,estimated:!!estimated};
+     const row=updateStock(tx,stock,articleId,locationId,after,at,{packageState});
+     const movement=ledger(tx,article,locationId,before,after,at,{source:'inventory',bookType:'package',note,undoneAt:null,packageState});done({...movement,stock:row});
+    };
    }catch(e){fail(e);}
   });
  });

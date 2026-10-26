@@ -102,10 +102,17 @@ export async function createCatalogArticle(input){
  const id=uid();return txPromise(db,['articles','categories','locations','stocks','movements','audit','media'],(tx,done,fail)=>{
   checkLocation(tx,input,at,fail,(locationId,locationName)=>{
    resolveCategory(tx,input,at,fail,(categoryId,categoryName)=>{
-    const row={id,...f,categoryId,category:categoryName,primaryLocationId:locationId,createdAt:at,updatedAt:at,schemaVersion:DATABASE_VERSION};
-    tx.objectStore('articles').add(row);addStock(tx,id,locationId,quantity,at,'initial');insertImage(tx,id,input?.image,at);
-    tx.objectStore('audit').add({id:uid(),type:'article-created',entityId:id,source:'manual',createdAt:at,name:f.name});
-    done({...row,quantity,locationName});
+    const save=(parent)=>{
+     const row={id,...f,categoryId,category:categoryName,primaryLocationId:locationId,createdAt:at,updatedAt:at,schemaVersion:DATABASE_VERSION};
+     if(parent){if(parent.archivedAt||!['food','consumable'].includes(parent.articleKind)||parent.articleKind!==f.articleKind||quantity!==0)return fail(new StorageError('Variante benötigt einen aktiven Elternartikel desselben Typs und Anfangsbestand 0.','VALIDATION'));
+      try{convertQuantity(f.packageSize,f.packageUnit,parent.unit);convertQuantity(1,f.unit,parent.unit);}catch(e){return fail(e);}
+      row.productGroupId=parent.productGroupId||parent.id;row.variantOf=parent.id;
+     }
+     tx.objectStore('articles').add(row);addStock(tx,id,locationId,quantity,at,'initial');insertImage(tx,id,input?.image,at);
+     tx.objectStore('audit').add({id:uid(),type:'article-created',entityId:id,source:'manual',createdAt:at,name:f.name});
+     done({...row,quantity,locationName});
+    };
+    if(input?.variantOf){const pr=tx.objectStore('articles').get(input.variantOf);pr.onsuccess=()=>{if(!pr.result)return fail(new StorageError('Übergeordneter Artikel wurde nicht gefunden.','VALIDATION'));save(pr.result);};}else save(null);
    });
   });
  });
@@ -144,17 +151,18 @@ export async function duplicateCatalogArticle(id){
  return createCatalogArticle({...source,name:(source.name.slice(0,150)+' (Kopie)'),locationId,quantity:0,image:null});
 }
 export async function deleteCatalogArticle(id){
- const db=await openDatabase(),at=now();return txPromise(db,['articles','stocks','movements','media','audit'],(tx,done,fail)=>{
+ const db=await openDatabase(),at=now();return txPromise(db,['articles','stocks','movements','media','audit','lots'],(tx,done,fail)=>{
   const articles=tx.objectStore('articles'),req=articles.get(id);req.onsuccess=()=>{
    const article=req.result;if(!article)return fail(new StorageError('Artikel nicht vorhanden.','VALIDATION'));
-   const s=tx.objectStore('stocks').index('by_article').getAll(id),m=tx.objectStore('movements').index('by_article').getAll(id);
-   let stocks,movements;const finalize=()=>{if(!stocks||!movements)return;
+   const s=tx.objectStore('stocks').index('by_article').getAll(id),m=tx.objectStore('movements').index('by_article').getAll(id),lr=tx.objectStore('lots').index('by_article').getAll(id);
+   let stocks,movements,lots;const finalize=()=>{if(!stocks||!movements||!lots)return;
+    if(lots.some(x=>x.quantity>0))return fail(new StorageError('Artikel hat noch MHD-Chargenzuordnungen. Diese zuerst auflösen.','IN_USE'));
     if(stocks.some(x=>x.quantity>0))return fail(new StorageError('Artikel hat noch Bestand. Setze ihn vor dem Löschen auf 0.','IN_USE'));
     if(movements.length){article.archivedAt=at;article.updatedAt=at;articles.put(article);done({archived:true});}
-    else{articles.delete(id);for(const x of stocks)tx.objectStore('stocks').delete(x.id);const media=tx.objectStore('media').index('by_owner').getAll(['article',id]);media.onsuccess=()=>{for(const x of media.result)tx.objectStore('media').delete(x.id);};done({archived:false});}
+    else{articles.delete(id);for(const x of stocks)tx.objectStore('stocks').delete(x.id);for(const x of lots)tx.objectStore('lots').delete(x.id);const media=tx.objectStore('media').index('by_owner').getAll(['article',id]);media.onsuccess=()=>{for(const x of media.result)tx.objectStore('media').delete(x.id);};done({archived:false});}
     tx.objectStore('audit').add({id:uid(),type:movements.length?'article-archived':'article-deleted',entityId:id,source:'manual',createdAt:at,name:article.name});
    };
-   s.onsuccess=()=>{stocks=s.result;finalize();};m.onsuccess=()=>{movements=m.result;finalize();};
+   s.onsuccess=()=>{stocks=s.result;finalize();};m.onsuccess=()=>{movements=m.result;finalize();};lr.onsuccess=()=>{lots=lr.result;finalize();};
   };
  });
 }

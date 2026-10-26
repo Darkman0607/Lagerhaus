@@ -108,7 +108,7 @@ export async function completePurchase(purchaseId,{actualQuantity,actualUnit,loc
   };
 });}
 /** Undo the receipt as a separate movement, never silently subtract stock. */
-export async function reopenPurchase(purchaseId){checkedId(purchaseId,'Einkaufs-ID');const db=await openDatabase(),at=now();return txWrite(db,['purchases','articles','stocks','movements','audit'],(tx,done,fail)=>{
+export async function reopenPurchase(purchaseId){checkedId(purchaseId,'Einkaufs-ID');const db=await openDatabase(),at=now();return txWrite(db,['purchases','articles','stocks','movements','audit','lots'],(tx,done,fail)=>{
  const ps=tx.objectStore('purchases'),r=ps.get(purchaseId);r.onsuccess=()=>{
   const p=r.result;if(!p||p.status!=='done')return fail(new StorageError('Nur erledigte Einkäufe lassen sich wieder öffnen.','VALIDATION'));
   const finish=()=>{const row={...p,status:'open',updatedAt:at,reopenedAt:at,receiptMovementId:null,completedAt:null};ps.put(row);tx.objectStore('audit').add({id:uuid(),type:'purchase-reopened',entityId:p.id,source:'manual',createdAt:at});done(row);};
@@ -121,11 +121,14 @@ export async function reopenPurchase(purchaseId){checkedId(purchaseId,'Einkaufs-
      const s=sr.result,before=s?.quantity||0,after=rounded(before-mv.delta);
      if(after<0)return fail(new StorageError('Wiederöffnen nicht möglich: gekaufter Bestand wurde bereits verbraucht.','INSUFFICIENT'));
      const stock={...s,quantity:after,updatedAt:at};if(stock.packageState?.capacity>0){const cap=stock.packageState.capacity,full=Math.floor(rounded(after/cap)+1e-9);stock.packageState={...stock.packageState,sealedPacks:full,openQuantity:rounded(after-full*cap),estimated:true};}
+     const lr=tx.objectStore('lots').index('by_article_location').getAll([mv.articleId,mv.locationId]);lr.onsuccess=()=>{
+     if(lr.result.some(l=>l.quantity>0))return fail(new StorageError('Einkauf mit MHD-Chargen kann nicht pauschal rückgängig gemacht werden. Chargen zuerst auflösen.','IN_USE'));
      tx.objectStore('stocks').put(stock);
      const reversal={id:uuid(),articleId:mv.articleId,locationId:mv.locationId,before,after,delta:-mv.delta,source:'correction',bookType:'reversal',undoOf:mv.id,purchaseId:p.id,note:'Einkauf rückgängig: '+p.name,createdAt:at,schemaVersion:DATABASE_VERSION};
      movements.add(reversal);movements.put({...mv,undoneAt:at,undoMovementId:reversal.id});
      tx.objectStore('audit').add({id:uuid(),type:'stock-adjusted',entityId:mv.articleId,source:'correction',createdAt:at,movementId:reversal.id,delta:reversal.delta,locationId:mv.locationId,before,after});
      finish();
+     };
     };
    };
   };

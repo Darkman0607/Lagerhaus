@@ -30,5 +30,5 @@ assert.equal(sceneAction('mode',{mode:'2d'}),true);assert.match(warehouse3DPanel
 assert.equal(sceneAction('mode',{mode:'list'}),true);assert.match(warehouse3DPanel(places),/u09-list-row/);
 assert.equal(sceneAction('mode',{mode:'notallowed'}),false);assert.equal(getSceneCamera().mode,'list');
 assert.equal(sceneAction('mode',{mode:'3d'}),true);assert.match(warehouse3DPanel([]),/keine Demodaten/);
-const sw=readFileSync(new URL('../sw.js',import.meta.url),'utf8');assert.match(sw,/warehouse-3d\.js/);assert.match(sw,/v1\.0\.0-rc\.1/);
+const sw=readFileSync(new URL('../sw.js',import.meta.url),'utf8');assert.match(sw,/warehouse-3d\.js/);assert.match(sw,/v1\.1\.0-beta\.1/);
 console.log('PASS U09: actual inventory, SVG scene, escaping, rotation/zoom/reset, click selection, 2D/list, empty data, cache');

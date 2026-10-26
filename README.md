@@ -1,3 +1,21 @@
+# Lagerhaus — U11 · V1.1.0-beta.1 (26.10.2026)
+
+**Status:** U11 als testbare Beta, kein vollständiger Geräte-/Browser-Abnahmestand. Basis ist die U10-Release-Candidate. Diese Vorabversion enthält weiterhin keine synchronisierten Konten und arbeitet lokal.
+
+**Fünf umgesetzte U11-Punkte:**
+
+1. **MHD je Charge/Packung:** Artikel → Details → Vorräte & MHD. Bestehende Mengen an einem Lagerort in Chargen mit MHD aufteilen, ohne zusätzliche Bestandsbuchung. Der unzugeordnete Rest ist weiterhin lagernd. Keine Überallokation.
+2. **Ablaufwarnungen:** bald/abgelaufen mit einstellbaren 0–365 Vorwarntagen, sichtbar im Dashboard, Artikelfilter und der Chargendetailansicht. Kein automatisches Entsorgen.
+3. **Verbrauchsmuster:** echte Verbrauchsbuchungen mit Datum und Menge werden zusammengefasst; Durchschnitt ausdrücklich als *Schätzung* gekennzeichnet. Kein automatischer Verbrauch allein wegen Zeitablauf.
+4. **Gebindegrößen:** 500/750/1000 ml usw. als eigenständige Artikel-Varianten mit separat geführtem Bestand und gemeinsamer Produktgruppe; eine Gruppen-Gesamtsumme nur bei kompatiblen Einheiten.
+5. **Schnellbuchung:** im Artikeldetail zuletzt verwendete Einheit, Menge und Lagerort vorbelegt; Buchung erfordert Bestätigung und landet nachvollziehbar im Bewegungsjournal.
+
+**Datenintegrität:** IndexedDB-Migration 5 → 6, zehnter Store `lots`; Mengen in `stocks` bleiben maßgeblich. Verbrauch/Entnahme reduziert MHD-Zuordnungen rechnerisch nach FEFO (frühestes MHD zuerst), was die physisch genommene Packung **nicht** nachweist. Alte U10-Backups mit Schema 5 bleiben importierbar; neue U11-Backups mit Schema 6 enthalten Chargen und Fotos. Bitte vor Upgrades ein Backup herunterladen und sicher aufbewahren.
+
+**QA:** Zwölf `npm test`-Suiten einschließlich U11. Der Android-/Tablet-Touch-Test, echter PWA-Offline-Neustart, Live-Pages-Aufruf und Browser-Backup-Download/Restore bleiben offen, bis auf echten Geräten nachgewiesen. Version 1.0.0 stabil wurde **nicht** freigegeben.
+
+---
+
 # Lagerhaus — V0.9.0 · Update U09 (26.10.2026)
 
 **Die Lageransicht ist jetzt räumlich-isometrisch nach der verbindlichen Referenz gestaltet.** Die anschauliche **SVG-3D-Skizze** bleibt ohne externe Grafikbibliotheken offline benutzbar; sie stellt reale, erfasste Lagerort- und Bestandsdaten dar, keine erfundenen Produkte oder Raummaße. Sie ist **kein vermessener CAD-Raum**; ein eigener räumlicher Editor folgt erst in U16.

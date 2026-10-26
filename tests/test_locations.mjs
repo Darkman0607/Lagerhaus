@@ -20,7 +20,7 @@ const {createLocation,updateLocation,archiveLocation,locationOverview,locationPa
 const {updateCatalogArticle,articleImages}=await import('../src/data/catalog.js');
 const {warehouseView}=await import('../src/views/warehouse.js');
 const {articlesView,clearArticleMediaUrls}=await import('../src/views/articles.js');
-assert.equal(DATABASE_VERSION,5);assert.equal((await repository.health()).version,5);
+assert.equal(DATABASE_VERSION,6);assert.equal((await repository.health()).version,6);
 let old=(await repository.locations()).find(p=>p.id===olderLoc);assert.equal(old.name,'Garage');assert.equal(old.parentId,null);assert.equal(old.kind,'raum');
 assert.equal((await repository.stocks())[0].quantity,5);assert.equal((await repository.movements(olderId)).length,1);assert.equal((await articleImages([olderId])).length,1);
 // U05-F01: arbitrary user-defined hierarchy; cycle and duplicate sibling protection.

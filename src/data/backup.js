@@ -28,7 +28,7 @@ async function toPortable(stores){
 export async function createBackup(){
  if(!crypto?.subtle)throw fail('Sichere Prüfsummen brauchen HTTPS oder localhost.');
  const db=await openDatabase();const portable=await toPortable(await readStores(db));
- const payload={format:BACKUP_FORMAT,formatVersion:BACKUP_VERSION,schemaVersion:DATABASE_VERSION,appVersion:'1.0.0-rc.1',exportedAt:new Date().toISOString(),stores:portable};
+ const payload={format:BACKUP_FORMAT,formatVersion:BACKUP_VERSION,schemaVersion:DATABASE_VERSION,appVersion:'1.1.0-beta.1',exportedAt:new Date().toISOString(),stores:portable};
  const body=JSON.stringify(payload);const checksum=await hex(body);const file=new Blob([JSON.stringify({payload,checksum})],{type:'application/json'});
  if(file.size>MAX_BACKUP_BYTES)throw fail('Sicherung zu groß (maximal 150 MB).');
  return {blob:file,checksum,counts:Object.fromEntries(STORE_NAMES.map(n=>[n,portable[n].length])),filename:`lagerhaus-backup-${new Date().toISOString().slice(0,10)}.json`};
@@ -39,16 +39,19 @@ function validRow(name,row,ids){
  if(name!=='meta'&&!uuid.test(row.id))throw fail(`Ungültige Datensatz-ID in ${name}.`);
  if(ids.has(row[key]))throw fail(`Doppelte Schlüssel in ${name}.`);ids.add(row[key]);
  if(name==='stocks'&&(!uuid.test(row.articleId||'')||!uuid.test(row.locationId||'')||!Number.isFinite(row.quantity)||row.quantity<0||row.quantity>1e9))throw fail('Ungültiger Lagerbestand in der Sicherung.');
+ if(name==='lots'&&(!uuid.test(row.articleId||'')||!uuid.test(row.locationId||'')||!Number.isFinite(row.quantity)||row.quantity<0||row.quantity>1e9||!/^\d{4}-\d{2}-\d{2}$/.test(row.bestBefore||'')||Number.isNaN(Date.parse(row.bestBefore))))throw fail('Ungültige Charge in der Sicherung.');
 }
 function validateStructure(payload){
  if(!payload||payload.format!==BACKUP_FORMAT||payload.formatVersion!==BACKUP_VERSION)throw fail('Dies ist keine unterstützte Lagerhaus-Sicherung.');
- if(payload.schemaVersion!==DATABASE_VERSION)throw fail(`Backup-Schema ${payload.schemaVersion} wird nicht unterstützt. Benötigt wird Schema ${DATABASE_VERSION}.`);
- if(!payload.stores||typeof payload.stores!=='object'||Array.isArray(payload.stores)||Object.keys(payload.stores).sort().join(',')!==[...STORE_NAMES].sort().join(','))throw fail('Die Sicherung enthält nicht alle erforderlichen Datenbereiche.');
+ if(![5,DATABASE_VERSION].includes(payload.schemaVersion))throw fail(`Backup-Schema ${payload.schemaVersion} wird nicht unterstützt. Benötigt wird Schema 5 oder ${DATABASE_VERSION}.`);
+ if(!payload.stores||typeof payload.stores!=='object'||Array.isArray(payload.stores)||Object.keys(payload.stores).sort().join(',')!==STORE_NAMES.filter(n=>n!=='lots'||payload.schemaVersion>=6).sort().join(','))throw fail('Die Sicherung enthält nicht alle erforderlichen Datenbereiche.');
  if(!payload.exportedAt||!Number.isFinite(Date.parse(payload.exportedAt)))throw fail('Sicherungsdatum ist ungültig.');
- const idsByStore={};for(const name of STORE_NAMES){const rows=payload.stores[name];if(!Array.isArray(rows)||rows.length>MAX_ROWS)throw fail(`Datenbereich ${name} ist ungültig oder zu groß.`);
+ const idsByStore={};for(const name of STORE_NAMES){const rows=name==='lots'&&payload.schemaVersion===5?[]:payload.stores[name];if(!Array.isArray(rows)||rows.length>MAX_ROWS)throw fail(`Datenbereich ${name} ist ungültig oder zu groß.`);
  const ids=new Set();for(const row of rows)validRow(name,row,ids);idsByStore[name]=ids;
  }
  for(const stock of payload.stores.stocks){if(!idsByStore.articles.has(stock.articleId)||!idsByStore.locations.has(stock.locationId))throw fail('Bestand verweist auf einen fehlenden Artikel oder Lagerort.');}
+ const stockByPair=new Map(payload.stores.stocks.map(s=>[s.articleId+'|'+s.locationId,s.quantity]));
+ const lotTotal=new Map();for(const lot of payload.stores.lots||[]){const pair=lot.articleId+'|'+lot.locationId;if(!stockByPair.has(pair))throw fail('Charge ohne zugehörigen Bestand.');lotTotal.set(pair,(lotTotal.get(pair)||0)+lot.quantity);if(lotTotal.get(pair)>stockByPair.get(pair)+0.000001)throw fail('Chargen überschreiten den Artikelbestand.');}
  const pairs=new Set();for(const s of payload.stores.stocks){const pair=s.articleId+'|'+s.locationId;if(pairs.has(pair))throw fail('Doppelter Artikelbestand am selben Lagerort.');pairs.add(pair);}
  for(const media of payload.stores.media){if(media.backupBlob){const b=media.backupBlob;if(!Number.isSafeInteger(b.bytes)||b.bytes<0||b.bytes>10_000_000||typeof b.type!=='string'||b.type.length>150)throw fail('Ungültige Medien-Metadaten.');if(!['image/png','image/jpeg','image/webp','application/pdf'].includes(b.type))throw fail('Unsicherer Medientyp.');if(typeof b.base64!=='string'||b.base64.length>Math.ceil(b.bytes/3)*4+4)throw fail('Ungültige Mediendaten.');}else if('blob'in media)throw fail('Sicherung enthält ein nicht portables Medium.');}
  return payload;
@@ -60,10 +63,10 @@ export async function inspectBackup(text){
  const current=await hex(JSON.stringify(doc.payload));
  if(doc.checksum!==current)throw fail('Prüfsummenfehler: Das Backup wurde verändert oder ist beschädigt.');
  const payload=validateStructure(doc.payload);
- const counts=Object.fromEntries(STORE_NAMES.map(n=>[n,payload.stores[n].length]));
+ const counts=Object.fromEntries(STORE_NAMES.map(n=>[n,(payload.stores[n]||[]).length]));
  return {payload,counts,exportedAt:payload.exportedAt,checksum:current};
 }
-async function nativeRecords(payload){const result={};for(const name of STORE_NAMES){result[name]=[];for(const row of payload.stores[name]){
+async function nativeRecords(payload){const result={};for(const name of STORE_NAMES){result[name]=[];for(const row of payload.stores[name]||[]){
  if(name==='media'&&row.backupBlob){const {backupBlob,...rest}=row;const raw=decode64(backupBlob.base64);if(raw.byteLength!==backupBlob.bytes)throw fail('Bilddaten passen nicht zur angegebenen Länge.');result[name].push({...rest,blob:new Blob([raw],{type:backupBlob.type})});}
  else result[name].push(row);
  }}return result;}

@@ -57,13 +57,15 @@ export async function locationOverview(){const db=await openDatabase();return ne
 export async function transferStock({articleId,sourceLocationId,targetLocationId,quantity,note=''}={}){
  uuid(articleId,'Artikel-ID');uuid(sourceLocationId,'Quellort-ID');uuid(targetLocationId,'Zielort-ID');
  if(sourceLocationId===targetLocationId)throw new StorageError('Quelle und Ziel müssen unterschiedlich sein.','VALIDATION');validateQuantity(quantity);if(quantity<=0)throw new StorageError('Umlagerungsmenge muss größer als 0 sein.','VALIDATION');note=noteOf(note);
- const db=await openDatabase(),at=now(),transferId=uid();return transaction(db,['articles','locations','stocks','movements','audit'],(tx,done,fail)=>{
+ const db=await openDatabase(),at=now(),transferId=uid();return transaction(db,['articles','locations','stocks','movements','audit','lots'],(tx,done,fail)=>{
  const articles=tx.objectStore('articles'),locations=tx.objectStore('locations'),stocks=tx.objectStore('stocks');
  const a=articles.get(articleId);a.onsuccess=()=>{if(!a.result||a.result.archivedAt)return fail(new StorageError('Artikel fehlt oder ist archiviert.','VALIDATION'));
  const l=locations.getAll();l.onsuccess=()=>{const from=l.result.find(x=>x.id===sourceLocationId),to=l.result.find(x=>x.id===targetLocationId);if(!from||!to||from.archivedAt||to.archivedAt)return fail(new StorageError('Quelle oder Ziel fehlt oder ist archiviert.','VALIDATION'));
  const r=stocks.index('by_article').getAll(articleId);r.onsuccess=()=>{const current=r.result,origin=current.find(x=>x.locationId===sourceLocationId),dest=current.find(x=>x.locationId===targetLocationId),beforeFrom=origin?.quantity||0,beforeTo=dest?.quantity||0;
  const afterFrom=Math.round((beforeFrom-quantity)*1000)/1000,afterTo=Math.round((beforeTo+quantity)*1000)/1000;
  if(afterFrom<0||afterTo>1_000_000_000)return fail(new StorageError('Umlagerung nicht möglich: unzureichender Quellbestand oder Zielbestand zu groß.','VALIDATION'));
+ const lr=tx.objectStore('lots').index('by_article').getAll(articleId);lr.onsuccess=()=>{
+ if(lr.result.some(l=>l.quantity>0&&(l.locationId===sourceLocationId||l.locationId===targetLocationId)))return fail(new StorageError('MHD-Chargen am Quell-/Zielort erst auflösen; Umlagerung mit Chargen erfordert getrennte Bestandszuordnung.','IN_USE'));
  stocks.put({id:origin.id,articleId,locationId:sourceLocationId,quantity:afterFrom,createdAt:origin.createdAt||at,updatedAt:at,schemaVersion:DATABASE_VERSION});
  stocks.put({id:dest?.id||uid(),articleId,locationId:targetLocationId,quantity:afterTo,createdAt:dest?.createdAt||at,updatedAt:at,schemaVersion:DATABASE_VERSION});
  const moves=tx.objectStore('movements');for(const [locationId,delta,before,after] of [[sourceLocationId,-quantity,beforeFrom,afterFrom],[targetLocationId,quantity,beforeTo,afterTo]])moves.add({id:uid(),articleId,locationId,delta,before,after,source:'transfer',transferId,note,createdAt:at,schemaVersion:DATABASE_VERSION});
@@ -71,20 +73,22 @@ export async function transferStock({articleId,sourceLocationId,targetLocationId
  if(a.result.primaryLocationId===sourceLocationId&&afterFrom===0){articles.put({...a.result,primaryLocationId:targetLocationId,updatedAt:at});}
  tx.objectStore('audit').add({id:transferId,type:'location-transfer',entityId:articleId,articleId,source:'transfer',createdAt:at,sourceLocationId,targetLocationId,quantity,note,undoneAt:null});
  done({id:transferId,articleId,sourceLocationId,targetLocationId,quantity,createdAt:at});
- };};};
+ };};};};
  });}
 export async function recentTransfers(limit=15){const db=await openDatabase();return new Promise((resolve,reject)=>{const tx=db.transaction(['audit'],'readonly'),req=tx.objectStore('audit').getAll();tx.onerror=()=>reject(tx.error);req.onsuccess=()=>resolve(req.result.filter(x=>x.type==='location-transfer').sort((a,b)=>b.createdAt.localeCompare(a.createdAt)).slice(0,limit));});}
-export async function undoTransfer(id){uuid(id,'Umlagerungs-ID');const db=await openDatabase(),at=now();return transaction(db,['audit','stocks','articles','movements','locations'],(tx,done,fail)=>{
+export async function undoTransfer(id){uuid(id,'Umlagerungs-ID');const db=await openDatabase(),at=now();return transaction(db,['audit','stocks','articles','movements','locations','lots'],(tx,done,fail)=>{
  const audit=tx.objectStore('audit'),r=audit.get(id);r.onsuccess=()=>{const t=r.result;if(!t||t.type!=='location-transfer'||t.undoneAt)return fail(new StorageError('Umlagerung existiert nicht oder ist bereits rückgängig gemacht.','VALIDATION'));
  const l=tx.objectStore('locations').getAll();l.onsuccess=()=>{if([t.sourceLocationId,t.targetLocationId].some(id=>!l.result.some(x=>x.id===id&&!x.archivedAt)))return fail(new StorageError('Ein beteiligter Lagerort ist archiviert.','VALIDATION'));
  const stocks=tx.objectStore('stocks'),sr=stocks.index('by_article').getAll(t.articleId);sr.onsuccess=()=>{const all=sr.result,source=all.find(x=>x.locationId===t.sourceLocationId),dest=all.find(x=>x.locationId===t.targetLocationId),beforeSource=source?.quantity||0,beforeTarget=dest?.quantity||0;
  const afterSource=Math.round((beforeSource+t.quantity)*1000)/1000,afterTarget=Math.round((beforeTarget-t.quantity)*1000)/1000;
  if(afterTarget<0||afterSource>1_000_000_000)return fail(new StorageError('Rückgängig nicht möglich: Bestand am Ziel wurde inzwischen verwendet oder reicht nicht mehr aus.','IN_USE'));
+ const lr=tx.objectStore('lots').index('by_article').getAll(t.articleId);lr.onsuccess=()=>{
+ if(lr.result.some(l=>l.quantity>0&&(l.locationId===t.sourceLocationId||l.locationId===t.targetLocationId)))return fail(new StorageError('Chargen zuerst auflösen, bevor die Umlagerung storniert wird.','IN_USE'));
  for(const [old,loc,before,after,delta] of [[source,t.sourceLocationId,beforeSource,afterSource,t.quantity],[dest,t.targetLocationId,beforeTarget,afterTarget,-t.quantity]]){
  stocks.put({id:old?.id||uid(),articleId:t.articleId,locationId:loc,quantity:after,createdAt:old?.createdAt||at,updatedAt:at,schemaVersion:DATABASE_VERSION});
  tx.objectStore('movements').add({id:uid(),articleId:t.articleId,locationId:loc,delta,before,after,source:'transfer-undo',transferId:id,note:'Umlagerung rückgängig gemacht',createdAt:at,schemaVersion:DATABASE_VERSION});
  }
  const a=tx.objectStore('articles').get(t.articleId);a.onsuccess=()=>{if(a.result&&a.result.primaryLocationId===t.targetLocationId&&afterTarget===0)tx.objectStore('articles').put({...a.result,primaryLocationId:t.sourceLocationId,updatedAt:at});};
  audit.put({...t,undoneAt:at});audit.add({id:uid(),type:'location-transfer-undone',entityId:t.articleId,source:'manual',createdAt:at,transferId:id});done({id,undoneAt:at});
- };};};
+ };};};};
  });}

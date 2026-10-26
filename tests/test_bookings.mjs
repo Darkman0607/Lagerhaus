@@ -22,7 +22,7 @@ const {repository,DATABASE_VERSION,openDatabase}=await import('../src/data/store
 const {bookStock,undoBooking,setLocationThreshold,setArticleThreshold,setPackageBreakdown,stockLedger,thresholdStatus}=await import('../src/data/bookings.js');
 const {bookingPanel}=await import('../src/views/bookings.js');
 const {articleImages}=await import('../src/data/catalog.js');
-assert.equal(DATABASE_VERSION,5);assert.equal((await repository.health()).version,5);
+assert.equal(DATABASE_VERSION,6);assert.equal((await repository.health()).version,6);
 const old=(await repository.stocks()).find(s=>s.articleId===articleId);assert.equal(old.quantity,1250);
 assert.equal((await articleImages([articleId])).length,1);assert.equal((await repository.movements(articleId)).find(m=>m.id===initialMove).delta,1250);
 // U06-F01: precise location bookings; inputs with compatible units, no overdraft, atomic failure.
