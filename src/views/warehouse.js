@@ -1,3 +1,4 @@
+import {warehouse3DPanel} from './warehouse-3d.js';
 import {bookingPanel} from './bookings.js';
 import {icon} from '../core/icons.js';
 import {escapeHtml as esc} from '../core/escape.js';
@@ -17,7 +18,8 @@ function hierarchy(p){const depth=p.path.split(' / ').length-1;return `<div clas
  <div class="location-actions"><a href="#/articles/location/${safe(p.id)}" class="secondary-btn location-link">Artikel ansehen</a><button type="button" data-location-action="edit" data-id="${safe(p.id)}">Umbenennen / ändern</button><button type="button" data-location-action="archive" data-id="${safe(p.id)}" class="location-danger">Archivieren</button></div></div>`;}
 function transferOptions(selected,all=false){return places.map(p=>`<option value="${safe(p.id)}" ${p.id===selected?'selected':''}>${safe(p.path)}</option>`).join('');}
 export async function warehouseView(){const [p,a,s,t,stockMarkup]=await Promise.all([locationOverview(),repository.articles(),repository.stocks(),recentTransfers(),bookingPanel()]);places=p;items=a;stocks=s;history=t;
- return `<section class="page-heading"><div><p class="eyebrow">STRUKTUR / LAGERORTE</p><h1>Lager</h1><p>Standorte, Räume, Regale, Fächer und Boxen mit echten Ortsbeständen.</p></div><span class="chip">3D-Ansicht folgt in U09</span></section>
+ return `<section class="page-heading"><div><p class="eyebrow">STRUKTUR / LAGERORTE</p><h1>Lager</h1><p>Standorte, Räume, Regale, Fächer und Boxen mit echten Ortsbeständen.</p></div><span class="chip success">Interaktive 3D-Ansicht · U09</span></section>
+ ${warehouse3DPanel(places)}
  <article class="panel location-panel"><div class="list-heading"><div>${icon('layers',18)} <strong>Ortsverwaltung</strong></div><span class="chip quiet">${places.length} aktive Orte</span></div>
  <p class="location-hint">Jeder Ort hat eine eindeutige ID. Du kannst ihn ohne Bestandsverlust umbenennen oder verschachteln. Mehrere Orte pro Artikel sind möglich.</p>
  <form id="location-form" class="location-create-form"><label>Name des Lagerorts<input name="name" required maxlength="100" placeholder="z. B. Garage, Regal A, Box Technik"></label><label>Typ<select name="kind">${LOCATION_KINDS.map(([v,l])=>`<option value="${v}">${l}</option>`).join('')}</select></label><label>Untergeordnet unter<select name="parentId">${placeOptions()}</select></label><button type="submit" class="primary-btn">${icon('plus',16)} Ort hinzufügen</button></form>
@@ -30,7 +32,7 @@ export async function warehouseView(){const [p,a,s,t,stockMarkup]=await Promise.
  return `<div class="location-history-row"><div><strong>${safe(item?.name||'Artikel')}</strong><small>${safe(source?.path||'Alter Ort')} → ${safe(target?.path||'Alter Ort')} · ${fmt(t.quantity)} ${safe(item?.unit||'')} · ${safe(new Date(t.createdAt).toLocaleString('de-AT'))}</small>${t.note?`<small>${safe(t.note)}</small>`:''}</div>${t.undoneAt?'<span class="chip quiet">Rückgängig</span>':`<button type="button" data-location-action="undo" data-id="${safe(t.id)}">Rückgängig</button>`}</div>`;}).join(''):'<div class="location-empty">Noch keine Umlagerung durchgeführt.</div>'}</div></article>
  ${stockMarkup}
  <dialog class="catalog-dialog" id="location-editor" aria-labelledby="location-editor-title"></dialog>
- <article class="panel warehouse-future"><div class="future-caption"><span class="chip success">Bereits geplant · U09</span><h2>Isometrische Lageransicht</h2><p>Die geplante 3D-Ansicht nutzt exakt diese Lagerorte und Ortsbestände. Sie zeigt keine erfundenen Regale oder Mengen.</p></div></article>`;
+`;
 }
 function err(id,message){const e=document.getElementById(id);if(e){e.textContent=message;e.hidden=false;}}
 export async function handleLocationSubmit(form,refresh){const submit=form.querySelector('[type="submit"]');submit.disabled=true;try{

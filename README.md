@@ -1,3 +1,18 @@
+# Lagerhaus — V0.9.0 · Update U09 (26.10.2026)
+
+**Die Lageransicht ist jetzt räumlich-isometrisch nach der verbindlichen Referenz gestaltet.** Die anschauliche **SVG-3D-Skizze** bleibt ohne externe Grafikbibliotheken offline benutzbar; sie stellt reale, erfasste Lagerort- und Bestandsdaten dar, keine erfundenen Produkte oder Raummaße. Sie ist **kein vermessener CAD-Raum**; ein eigener räumlicher Editor folgt erst in U16.
+
+### Die fünf U09-Funktionen
+1. **U09-F01 – 3D-Grundszene:** stilisiertes Lager mit Wänden, Bodenraster, plastischen Regalen/Boxen und klaren Callouts statt vollflächiger 3D-Oberflächen in anderen App-Modulen.
+2. **U09-F02 – Anklickbare Lagerorte:** Regal/Raum/Box auswählen, Orts-Pfad, echte Artikelanzahl und tatsächliche Artikelpositionen im Detailbereich sehen; direkte Verknüpfung in die Artikelliste.
+3. **U09-F03 – Steuerung:** 360° Rotation durch Wischbewegung oder +/-30°-Schaltflächen, Zwei-Finger-Zoom/Schieben, Mausrad-Zoom, Verschiebungsbuttons, Kamera zurücksetzen. Zoom und Pan begrenzt. Android-Gesten noch nicht auf echtem Gerät abgenommen.
+4. **U09-F04 – Warnungen:** fehlend (Bestandszeile mit Menge 0), niedrig (Menge > 0 mit bestehender Bestandswarnung), sonst grün. Zahlen kommen aus dem gleichen `locationOverview()` wie die Lagerkarten; keine zusätzlichen Scheindaten.
+5. **U09-F05 – 2D-Plan/Liste:** gleicher Datenbestand für Ansichten 3D, 2D und vollständige Liste. Die Szene beschränkt die Geometrie aus Performancegründen auf 28 Orte und die Callouts auf 10; alle Orte bleiben in der Liste verfügbar.
+
+**Tests:** `npm test` (zehn Suites inkl. U09) und `node --check` bestanden. Statische SVG-Bildprüfung durchgeführt. **Offen:** echter Chromium-Websiteaufruf (`ERR_BLOCKED_BY_ADMINISTRATOR` in der Umgebung), Android-Chrome/Touch/PWA/Offline-Wiederanlauf und tatsächlicher GitHub-Pages-UI-Check. Datenschema bleibt Version 5; keine Migration, keine Bestandsdaten beim Release in der ZIP. Vollbackup erst für U10 vorgesehen – Browserdaten keinesfalls löschen.
+
+---
+
 # Lagerhaus — V0.8.0 · Update U08
 
 U08 setzt das Einkaufspanel nach der verbindlichen Designreferenz um. Dunkles industrielles Layout, smaragdgrüne Aktionen, übersichtliche Liste, Status- und Prioritätsfilter. **Die 3D-Lageransicht ist separat für U09 geplant.**
