@@ -1,26 +1,30 @@
-# Lagerhaus — U11 · V1.1.0-beta.1 (26.10.2026)
+# Lagerhaus – U12 · V1.2.0-beta.1 (26.10.2026)
 
-**Status:** U11 als testbare Beta, kein vollständiger Geräte-/Browser-Abnahmestand. Basis ist die U10-Release-Candidate. Diese Vorabversion enthält weiterhin keine synchronisierten Konten und arbeitet lokal.
+**Status:** U12 ist eine testbare Vorabversion. Verifiziertes Android-/Chrome-/GitHub-Pages-Deployment steht weiterhin aus. Alle Daten bleiben lokal im jeweiligen Browserprofil; keine Live-Synchronisierung.
 
-**Fünf umgesetzte U11-Punkte:**
+## Fünf U12-Funktionen
 
-1. **MHD je Charge/Packung:** Artikel → Details → Vorräte & MHD. Bestehende Mengen an einem Lagerort in Chargen mit MHD aufteilen, ohne zusätzliche Bestandsbuchung. Der unzugeordnete Rest ist weiterhin lagernd. Keine Überallokation.
-2. **Ablaufwarnungen:** bald/abgelaufen mit einstellbaren 0–365 Vorwarntagen, sichtbar im Dashboard, Artikelfilter und der Chargendetailansicht. Kein automatisches Entsorgen.
-3. **Verbrauchsmuster:** echte Verbrauchsbuchungen mit Datum und Menge werden zusammengefasst; Durchschnitt ausdrücklich als *Schätzung* gekennzeichnet. Kein automatischer Verbrauch allein wegen Zeitablauf.
-4. **Gebindegrößen:** 500/750/1000 ml usw. als eigenständige Artikel-Varianten mit separat geführtem Bestand und gemeinsamer Produktgruppe; eine Gruppen-Gesamtsumme nur bei kompatiblen Einheiten.
-5. **Schnellbuchung:** im Artikeldetail zuletzt verwendete Einheit, Menge und Lagerort vorbelegt; Buchung erfordert Bestätigung und landet nachvollziehbar im Bewegungsjournal.
+1. **Einzelgeräteprofile** – beliebig viele physische Geräte pro Geräteartikel, eigene Seriennummer, Zustand, Gerätetyp, Kaufdatum, Lagerort, Betriebsstunden, Foto und Notizen.
+2. **Wartungsintervalle** – separate Pläne nach Kalendertagen und/oder Nutzungsstunden mit erster Fälligkeit. Angaben sind individuelle Erinnerungen, keine rechtlich verbindlichen Prüfpflichten.
+3. **Wartungshistorie** – Arbeitsart, Datum, Betriebsstunden, Kosten, Foto und Notiz; erfolgreicher Abschluss verschiebt wiederkehrende Fälligkeiten.
+4. **Ersatzteile und Verbrauchsartikel** – manuelle Verknüpfung mit vorhandenen Lagerartikeln und Anzeige des tatsächlichen Bestands; **keine automatische Abbuchung oder technische Kompatibilitätsgarantie**.
+5. **Wartungsübersicht mit Ampeln** – fällig, bald fällig, im Zeitplan; Bereichs- und Gerätetypfilter. Erledigte Einträge erscheinen in Historie und Kennzahlen.
 
-**Datenintegrität:** IndexedDB-Migration 5 → 6, zehnter Store `lots`; Mengen in `stocks` bleiben maßgeblich. Verbrauch/Entnahme reduziert MHD-Zuordnungen rechnerisch nach FEFO (frühestes MHD zuerst), was die physisch genommene Packung **nicht** nachweist. Alte U10-Backups mit Schema 5 bleiben importierbar; neue U11-Backups mit Schema 6 enthalten Chargen und Fotos. Bitte vor Upgrades ein Backup herunterladen und sicher aufbewahren.
+## Bedienung
 
-**QA:** Zwölf `npm test`-Suiten einschließlich U11. Der Android-/Tablet-Touch-Test, echter PWA-Offline-Neustart, Live-Pages-Aufruf und Browser-Backup-Download/Restore bleiben offen, bis auf echten Geräten nachgewiesen. Version 1.0.0 stabil wurde **nicht** freigegeben.
+Im Seiten- und Mobilmenü **Wartung** öffnen. Geräteartikel zunächst unter **Artikel** als **Gerät** erfassen, dann in **Wartung → Neues Einzelgerät** ein eigenes Profil anlegen. Jedes physische Gerät einzeln erfassen. Wartung in **Wartungsintervalle** planen, danach unter **Erledigte Wartung dokumentieren** bestätigen.
+
+## Daten & Migration
+
+IndexedDB Schema 6 → 7: vier additive Stores (`devices`, `maintenancePlans`, `maintenanceEvents`, `deviceParts`); vorhandene Bestände werden nicht absichtlich gelöscht. Backups aus U10 (Schema 5), U11 (Schema 6) und U12 (Schema 7) werden akzeptiert, einschließlich lokal gespeicherter Fotos. Vor Update unter Mehr eine Kopie exportieren und den tatsächlichen Download überprüfen; Browserdaten **nicht löschen**. Backup ist **nicht verschlüsselt**. Fehlende echte Installations-, Touch- und Offline-Endgerätenachweise verhindern weiterhin die stabile Freigabe.
+
+## Tests
+
+`npm test` führt 13 automatische Testsuiten inklusive U12-Funktionen und Backup-Regressionen aus. Ein Fake-IndexedDB-Test ersetzt **keinen** echten Chrome-Test.
 
 ---
 
-# Lagerhaus — V0.9.0 · Update U09 (26.10.2026)
-
-**Die Lageransicht ist jetzt räumlich-isometrisch nach der verbindlichen Referenz gestaltet.** Die anschauliche **SVG-3D-Skizze** bleibt ohne externe Grafikbibliotheken offline benutzbar; sie stellt reale, erfasste Lagerort- und Bestandsdaten dar, keine erfundenen Produkte oder Raummaße. Sie ist **kein vermessener CAD-Raum**; ein eigener räumlicher Editor folgt erst in U16.
-
-### Die fünf U09-Funktionen
+## Die fünf U09-Funktionen
 1. **U09-F01 – 3D-Grundszene:** stilisiertes Lager mit Wänden, Bodenraster, plastischen Regalen/Boxen und klaren Callouts statt vollflächiger 3D-Oberflächen in anderen App-Modulen.
 2. **U09-F02 – Anklickbare Lagerorte:** Regal/Raum/Box auswählen, Orts-Pfad, echte Artikelanzahl und tatsächliche Artikelpositionen im Detailbereich sehen; direkte Verknüpfung in die Artikelliste.
 3. **U09-F03 – Steuerung:** 360° Rotation durch Wischbewegung oder +/-30°-Schaltflächen, Zwei-Finger-Zoom/Schieben, Mausrad-Zoom, Verschiebungsbuttons, Kamera zurücksetzen. Zoom und Pan begrenzt. Android-Gesten noch nicht auf echtem Gerät abgenommen.

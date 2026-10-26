@@ -119,6 +119,7 @@ export async function createCatalogArticle(input){
 }
 export async function updateCatalogArticle(articleId,input){
  const {fields:f,quantity}=fields(input);const at=now(),db=await openDatabase();
+ if(f.articleKind!=='device'){const attached=await new Promise((resolve,reject)=>{const tx=db.transaction(['devices'],'readonly'),req=tx.objectStore('devices').index('by_article').getAll(articleId);req.onsuccess=()=>resolve(req.result.length);req.onerror=()=>reject(req.error);});if(attached)throw new StorageError('Ein Geräteartikel mit Einzelgeräten darf seinen Artikeltyp nicht ändern.','IN_USE');}
  return txPromise(db,['articles','categories','locations','stocks','movements','audit'],(tx,done,fail)=>{
   const articles=tx.objectStore('articles'),request=articles.get(articleId);
   request.onsuccess=()=>{
@@ -151,18 +152,19 @@ export async function duplicateCatalogArticle(id){
  return createCatalogArticle({...source,name:(source.name.slice(0,150)+' (Kopie)'),locationId,quantity:0,image:null});
 }
 export async function deleteCatalogArticle(id){
- const db=await openDatabase(),at=now();return txPromise(db,['articles','stocks','movements','media','audit','lots'],(tx,done,fail)=>{
+ const db=await openDatabase(),at=now();return txPromise(db,['articles','stocks','movements','media','audit','lots','devices','deviceParts'],(tx,done,fail)=>{
   const articles=tx.objectStore('articles'),req=articles.get(id);req.onsuccess=()=>{
    const article=req.result;if(!article)return fail(new StorageError('Artikel nicht vorhanden.','VALIDATION'));
-   const s=tx.objectStore('stocks').index('by_article').getAll(id),m=tx.objectStore('movements').index('by_article').getAll(id),lr=tx.objectStore('lots').index('by_article').getAll(id);
-   let stocks,movements,lots;const finalize=()=>{if(!stocks||!movements||!lots)return;
+   const s=tx.objectStore('stocks').index('by_article').getAll(id),m=tx.objectStore('movements').index('by_article').getAll(id),lr=tx.objectStore('lots').index('by_article').getAll(id),dv=tx.objectStore('devices').index('by_article').getAll(id),pt=tx.objectStore('deviceParts').getAll();
+   let stocks,movements,lots,devices,parts;const finalize=()=>{if(!stocks||!movements||!lots||!devices||!parts)return;
+    if(devices.length||parts.some(x=>x.articleId===id))return fail(new StorageError('Dieser Artikel ist noch einem Geräteprofil oder als Ersatzteil zugeordnet. Entferne zuerst die Verknüpfung; Geräteprofile und Wartungshistorie dürfen nicht verwaisen.','IN_USE'));
     if(lots.some(x=>x.quantity>0))return fail(new StorageError('Artikel hat noch MHD-Chargenzuordnungen. Diese zuerst auflösen.','IN_USE'));
     if(stocks.some(x=>x.quantity>0))return fail(new StorageError('Artikel hat noch Bestand. Setze ihn vor dem Löschen auf 0.','IN_USE'));
     if(movements.length){article.archivedAt=at;article.updatedAt=at;articles.put(article);done({archived:true});}
     else{articles.delete(id);for(const x of stocks)tx.objectStore('stocks').delete(x.id);for(const x of lots)tx.objectStore('lots').delete(x.id);const media=tx.objectStore('media').index('by_owner').getAll(['article',id]);media.onsuccess=()=>{for(const x of media.result)tx.objectStore('media').delete(x.id);};done({archived:false});}
     tx.objectStore('audit').add({id:uid(),type:movements.length?'article-archived':'article-deleted',entityId:id,source:'manual',createdAt:at,name:article.name});
    };
-   s.onsuccess=()=>{stocks=s.result;finalize();};m.onsuccess=()=>{movements=m.result;finalize();};lr.onsuccess=()=>{lots=lr.result;finalize();};
+   s.onsuccess=()=>{stocks=s.result;finalize();};m.onsuccess=()=>{movements=m.result;finalize();};lr.onsuccess=()=>{lots=lr.result;finalize();};dv.onsuccess=()=>{devices=dv.result;finalize();};pt.onsuccess=()=>{parts=pt.result;finalize();};
   };
  });
 }

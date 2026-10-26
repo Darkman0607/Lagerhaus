@@ -7,7 +7,7 @@ const {bookStock,undoBooking}=await import('../src/data/bookings.js');
 const {transferStock}=await import('../src/data/locations.js');
 const {assignLot,removeLot,listLots,validDate,expiryStatus,lotWarnings,usageSummary,groupVariants,addVariant,setExpiryWarningDays,getExpiryWarningDays}=await import('../src/data/consumables.js');
 const {createBackup,inspectBackup,restoreBackup}=await import('../src/data/backup.js');
-assert.equal(DATABASE_VERSION,6);assert.equal(validDate('2026-02-30'),false);
+assert.equal(DATABASE_VERSION,7);assert.equal(validDate('2026-02-30'),false);
 assert.equal(expiryStatus('2026-10-25',14,'2026-10-26'),'abgelaufen');
 assert.equal(expiryStatus('2026-11-08',14,'2026-10-26'),'bald');
 assert.equal(expiryStatus('2026-11-25',14,'2026-10-26'),'ok');
@@ -38,7 +38,7 @@ const b=await createBackup();const inspection=await inspectBackup(await b.blob.t
 await removeLot(old.id);assert.equal((await listLots()).length,1);
 await restoreBackup(inspection);assert.equal((await listLots()).length,2);assert.equal((await repository.stocks()).reduce((s,x)=>s+x.quantity,0),2750);
 // Old schema-5 exports remain restoreable; no lots are invented.
-const v5=JSON.parse(await b.blob.text());delete v5.payload.stores.lots;v5.payload.schemaVersion=5;
+const v5=JSON.parse(await b.blob.text());delete v5.payload.stores.lots;for(const k of ['devices','maintenancePlans','maintenanceEvents','deviceParts'])delete v5.payload.stores[k];v5.payload.schemaVersion=5;
 const bytes=new TextEncoder().encode(JSON.stringify(v5.payload));v5.checksum=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes)),c=>c.toString(16).padStart(2,'0')).join('');
 const oldInspection=await inspectBackup(JSON.stringify(v5));await restoreBackup(oldInspection);assert.equal((await listLots()).length,0);
 console.log('PASS U11: 5 functions, limits, FEFO, undo, variants, expiry, estimated usage, old/new backup');

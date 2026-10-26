@@ -2,6 +2,7 @@ export const routes = {
  dashboard:{label:'Dashboard',icon:'dashboard', eyebrow:'Übersicht'},
  warehouse:{label:'Lager',icon:'warehouse', eyebrow:'Lagerorte'},
  articles:{label:'Artikel',icon:'box', eyebrow:'Artikelstamm'},
+ maintenance:{label:'Wartung',icon:'wrench', eyebrow:'Geräte & Wartung'},
  shopping:{label:'Einkauf',icon:'shopping', eyebrow:'Nachkauf'},
  more:{label:'Mehr',icon:'more', eyebrow:'Verwaltung'},
 };

@@ -3,8 +3,8 @@
  * No demo inventory, no network/database telemetry.
  */
 export const DATABASE_NAME = 'lagerhaus-local';
-export const DATABASE_VERSION = 6;
-export const STORE_NAMES = Object.freeze(['articles','locations','stocks','movements','media','purchases','audit','meta','categories','lots']);
+export const DATABASE_VERSION = 7;
+export const STORE_NAMES = Object.freeze(['articles','locations','stocks','movements','media','purchases','audit','meta','categories','lots','devices','maintenancePlans','maintenanceEvents','deviceParts']);
 const VALID_SOURCES = new Set(['manual','receipt','usage','correction','inventory','initial']);
 const MAX_QUANTITY = 1_000_000_000;
 
@@ -114,6 +114,13 @@ function migrate(db,tx,oldVersion){
     const lots=makeStore(db,tx,'lots');
     makeIndex(lots,'by_article','articleId');
     makeIndex(lots,'by_article_location',['articleId','locationId']);
+  }
+  if(oldVersion<7){
+    const dev=makeStore(db,tx,'devices'),plans=makeStore(db,tx,'maintenancePlans'),events=makeStore(db,tx,'maintenanceEvents'),parts=makeStore(db,tx,'deviceParts');
+    makeIndex(dev,'by_article','articleId');
+    makeIndex(plans,'by_device','deviceId');
+    makeIndex(events,'by_device','deviceId');makeIndex(events,'by_plan','planId');
+    makeIndex(parts,'by_device','deviceId');
   }
 }
 let openPromise;
