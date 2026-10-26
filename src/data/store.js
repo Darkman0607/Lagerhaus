@@ -118,9 +118,10 @@ export class WarehouseRepository {
         if(--pending!==0)return;
         const totals=new Map();
         for(const s of stocks)totals.set(s.articleId,(totals.get(s.articleId)||0)+s.quantity);
-        const trackable=articles.filter(a=>Number.isFinite(a.minQuantity)&&a.minQuantity>0);
+        const active=articles.filter(a=>!a.archivedAt);
+        const trackable=active.filter(a=>Number.isFinite(a.minQuantity)&&a.minQuantity>0);
         done({
-          articles:articles.length,
+          articles:active.length,
           lowStock:trackable.filter(a=>(totals.get(a.id)||0)>0&&(totals.get(a.id)||0)<a.minQuantity).length,
           outOfStock:trackable.filter(a=>(totals.get(a.id)||0)===0).length,
           openPurchases:purchases.filter(p=>p.status!=='done').length
@@ -157,7 +158,7 @@ export class WarehouseRepository {
       const articles=tx.objectStore('articles'),locations=tx.objectStore('locations'),stocks=tx.objectStore('stocks');
       const a=articles.get(articleId);
       a.onsuccess=()=>{
-        if(!a.result){tx.abort();return;}
+        if(!a.result||a.result.archivedAt){tx.abort();return;}
         const l=locations.get(locationId);
         l.onsuccess=()=>{
           if(!l.result){tx.abort();return;}

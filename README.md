@@ -1,46 +1,39 @@
-# Lagerhaus – V0.2.0 (Update U02)
+# Lagerhaus — V0.3.0 · Update U03
 
-Professionelles Grundgerüst einer **privaten und beruflichen Lagerverwaltungs-PWA**. Design nach der verbindlichen, im Masterplan eingebetteten Industrie-Referenz; **räumliches 3D ausschließlich im späteren Modul Lagerorte**.
+Offlinefähige, lokal speichernde Lagerverwaltung für **Privat und Arbeit**, entworfen nach der im Masterplan festgelegten Industrie-Designreferenz. Die grafische 3D-Lageransicht ist **ausschließlich für das Modul Lager/Lagerorte** vorgesehen und gehört zu einem späteren Update.
 
-## Enthalten
+## Neu mit U03 · Artikelstamm
 
-- U01-F01: Modularer Projektaufbau, getrennte View-, Core- und Datenschichten.
-- U01-F02: Einheitliches anthrazit-/smaragdgrünes Designsystem.
-- U01-F03: Responsive Navigation – mobile Bottom-Bar, große Screens mit Sidebar.
-- U01-F04: Dashboard mit echten leeren Ausgangswerten (keine Fake-Bestände).
-- U01-F05: Android-PWA mit Manifest, echten PNG-Icons und Offline-App-Shell.
+1. **Schnellerfassung:** Artikelname, Kategorie, Lagerort und Anfangsbestand; Bereich Privat/Arbeit/Gemeinsam wird vorbelegt. Bestehende Lagerorte auswählen oder einfachen neuen Namen anlegen. Eine umfassende Lagerortverwaltung folgt erst mit U05.
+2. **Weitere Details:** Marke, Modell, Typ, Hersteller, Seriennummer, Notizen, Farbe, Zustand und Favoriten-Kennzeichnung sind optional.
+3. **Einheiten und Packungsinhalt:** Stück, Paar, Packung, ml, l, g, kg, m. Für Gebinde kann ein separater Inhalt gespeichert werden, etwa Packung 750 ml. Der integrierte Rechner wandelt ausschließlich kompatible Messeinheiten um (1 l = 1000 ml); Stück, Paar und Packung werden nicht vermischt.
+4. **Artikelfotos:** JPG, PNG oder WEBP bis 5 MB. Lokale Speicherung in IndexedDB, Foto ersetzen/entfernen. Ohne Bild erscheint eine neutrale Kachel. Beschädigte Fotos blockieren den Artikel nicht.
+5. **Bearbeiten, Kopieren, Löschen:** Bearbeiten inklusive Bestandskorrektur mit Buchungsprotokoll. Duplikate erhalten neue UUID und starten mit Bestand 0. Vor dem Löschen erscheint eine Nachfrage mit Artikelname. Ein Artikel mit Bestand > 0 kann nicht gelöscht werden. Mit vorhandener Buchungshistorie wird ein Artikel bei Bestand 0 aus Beweissicherungsgründen archiviert und kann wiederhergestellt werden. Ohne Buchungshistorie wird er endgültig gelöscht.
 
-**Wichtig:** Diese Version enthält noch **keine Artikelerfassung, Datenbank, Einkaufserfassung, Backups oder 3D-Funktion**. Die entsprechenden Bereiche zeigen eindeutige Platzhalter und Roadmap-Hinweise. Keine Nutzerdaten werden mit GitHub synchronisiert.
+Artikel und Anfangsbestand werden innerhalb **einer IndexedDB-Transaktion** angelegt. Die bestehende Datenbankversion **2 bleibt unverändert**; ältere Lagerhaus-Daten werden nicht gelöscht. Die Kachelwerte auf dem Dashboard stammen weiterhin aus dem echten lokalen Datenspeicher.
 
-## Nutzung / Installation
+## Bereits enthalten (U01/U02)
 
-1. GitHub Pages auf Branch `main`, Verzeichnis `/ (root)` setzen.
-2. App im **Google Chrome** auf Android über `https://darkman0607.github.io/Lagerhaus/` öffnen (HTTPS erforderlich).
-3. Chrome-Menü → **App installieren** / **Zum Startbildschirm hinzufügen**, falls vom Browser angeboten. Die Installationsoption hängt u. a. von Browser, Gerät und Aufrufkontext ab.
-4. Zur Offline-Nutzung die App einmal mit Internet öffnen, danach erneut öffnen und testen.
+- Modulares Projekt, responsive Seitenleiste/Bottom-Navigation, dunkles Industrie-Design.
+- Progressive Web App mit Manifest, PNG-Icons und Offline-App-Shell.
+- IndexedDB mit acht Stores, UUIDs, Buchungs- und Änderungsprotokoll, atomare Bestandsbuchungen und Schreibdiagnose unter „Mehr“.
 
-Lokal: Statischen Webserver im App-Verzeichnis starten, z. B. `python -m http.server 8000`, dann `http://localhost:8000` in Chrome öffnen. **Nicht** per `file://` laden, da ein Service Worker einen sicheren Ursprung benötigt.
+## Installation auf Android
 
-## Architektur
+1. GitHub Pages im Repository unter **Settings → Pages → Deploy from a branch → main / (root)** einstellen.
+2. `https://darkman0607.github.io/Lagerhaus/` in Google Chrome öffnen.
+3. Menü → „App installieren“ beziehungsweise „Zum Startbildschirm hinzufügen“ (browserabhängig).
+4. Für den Offline-Betrieb zunächst mit Netzwerk öffnen und das vollständige Laden abwarten, anschließend offline neu starten und ausprobieren.
 
-- `index.html` – Einstiegspunkt
-- `assets/styles.css` – responsive Designbibliothek
-- `src/core/` – Navigation und Icons
-- `src/data/store.js` – leerer Datenadapter, wird in U02 durch IndexedDB ersetzt
-- `src/views/` – voneinander getrennte Hauptansichten
-- `manifest.webmanifest`, `sw.js`, `assets/icons` – installierbare Offline-PWA
+Zum lokalen Start (sicherer `localhost`-Kontext): `python -m http.server 8000` im App-Ordner und `http://localhost:8000` öffnen. `file://` ist nicht für Service Worker geeignet.
 
-## Testnotizen
+## Testen
 
-In `tests/` dokumentierte automatische Tests prüfen Navigation, Nullwerte, Mobile/Desktop und Offline-Verhalten. Echtes Android-Chrome und ein Live-GitHub-Pages-Deployment sind getrennt zu prüfen; lokale Browsertests ersetzen diese nicht.
+`npm test` führt die vorhandenen U01/U02-Regressionen sowie zusätzliche U03-Verhaltenstests mit simulierter IndexedDB aus. Die Tests decken Pflichtfelder, Kategorien, Einheitentrennung, Bilder, Lagerort-Wiederverwendung, Bestandskorrekturen, Transaktionsabbruch, Duplikate, Archivierung und Wiederherstellung ab. Die Simulation ist **kein Nachweis** für echtes Android-Chrome, Installation oder Browser-Persistenz.
 
+## Wichtige Grenzen
 
-## Update U02 – lokale Datenbank / Zuverlässigkeit
-
-- IndexedDB `lagerhaus-local`, Schema 2, acht getrennte Datenspeicher (`articles`, `locations`, `stocks`, `movements`, `media`, `purchases`, `audit`, `meta`).
-- Datenbanköffnung und additive Migrationslogik. Kein automatisches Löschen vorhandener Datensätze bei Schemawechseln.
-- Sichere UUIDs via `crypto.randomUUID()` (HTTPS/localhost erforderlich), Erstellungs-/Änderungszeitstempel, fortlaufende Änderungs- und Buchungshistorie.
-- Bestandsänderungen atomar innerhalb **einer** nativen IndexedDB-Transaktion; negativer Bestand und ungültige Beträge werden abgebrochen. Es existiert noch **keine reguläre UI zur Artikelerfassung** – diese folgt in U03.
-- Unter **Mehr → Speicherdiagnose** kann eine Schreib-/Lese-/Löschprüfung ohne Veränderung des Inventars ausgeführt werden. Der Status bzw. Fehler beim Zugriff erscheint sichtbar in der Oberfläche.
-- Daten bleiben lokal im Browserprofil; Browserdaten löschen oder Website zurücksetzen kann Daten zerstören. Offline-App-Shell heißt **nicht**, dass Android garantierte dauerhafte Datenspeicherung erlaubt. Export-/Restore und vollständiges Backup sind erst für U10 (V1.0) geplant.
-- `npm test` führt statische Regressionen und U02-Code-/Schreibgrenzen-Prüfungen aus. Für vollständige Abnahme außerdem Browser-/Android-/Offline- und echte Migrationstests durchführen.
+- **Keine Sicherung/Import-/Restore-Funktion vor Update U10.** Die Daten liegen allein im lokalen Browserprofil des Geräts. Das Löschen von Website- oder Browserdaten kann die Artikel und Fotos dauerhaft entfernen. Kein automatischer Cloud-Abgleich.
+- Bestände mit mehreren realen Lagerorten lassen sich in U03 nicht über den einfachen Artikel-Editor umverteilen; die gezielte Lagerort-/Umbuchungsverwaltung ist für U05 geplant.
+- Eine vollständige Kategorienverwaltung (U04), Suche/Filterausbau (U07), 3D-Lager (U09) und Backup (U10) folgen gemäß Checkliste.
+- Quellcode auf GitHub enthält **keine privaten Lager- oder Fotodaten**.

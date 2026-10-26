@@ -1,0 +1,58 @@
+import assert from 'node:assert/strict';
+import {installFakeIndexedDB,resetFakeDatabases} from './fake-indexeddb.mjs';
+installFakeIndexedDB();resetFakeDatabases();
+const {
+ createCatalogArticle,updateCatalogArticle,duplicateCatalogArticle,deleteCatalogArticle,
+ restoreArchivedArticle,articleImages,setArticleImage,convertQuantity,UNITS
+}=await import('../src/data/catalog.js');
+const {repository}=await import('../src/data/store.js');
+const {articlesView,clearArticleMediaUrls}=await import('../src/views/articles.js');
+const keys=['name','category','locationName','quantity'];
+const item={name:'WC Reiniger',category:'Putzen',section:'privat',locationName:'Bad Schrank',quantity:2.5,unit:'l',brand:'Testmarke',model:'X-4',manufacturer:'Test',serialNumber:'12-44',notes:'Sichere Lagerung',color:'blau',condition:'neu',favorite:true,packageSize:750,packageUnit:'ml'};
+assert.equal(convertQuantity(1,'l','ml'),1000);
+assert.equal(convertQuantity(1250,'ml','l'),1.25);
+assert.equal(convertQuantity(1.5,'kg','g'),1500);
+assert.throws(()=>convertQuantity(1,'Stück','ml'),{code:'VALIDATION'});
+assert.throws(()=>convertQuantity(1,'Paar','Stück'),{code:'VALIDATION'});
+assert.equal(UNITS.length,8);
+for(const key of keys){const invalid={...item};if(key==='quantity')invalid.quantity=-2;else invalid[key]=' ';await assert.rejects(()=>createCatalogArticle(invalid),{code:'VALIDATION'},'required '+key);}
+await assert.rejects(()=>createCatalogArticle({...item,unit:'foo'}),{code:'VALIDATION'});
+await assert.rejects(()=>createCatalogArticle({...item,packageSize:23,packageUnit:''}),{code:'VALIDATION'});
+await assert.rejects(()=>createCatalogArticle({...item,image:new Blob(['test'],{type:'text/plain'})}),{code:'VALIDATION'});
+let a=await createCatalogArticle(item);
+assert.equal(a.quantity,2.5);
+assert.equal((await repository.articles()).length,1);
+assert.equal((await repository.locations()).length,1);
+assert.equal((await repository.stocks())[0].quantity,2.5);
+assert.equal((await repository.movements(a.id)).length,1);
+assert.equal((await repository.articles())[0].favorite,true);
+assert.equal((await repository.articles())[0].packageSize,750);
+let b=await createCatalogArticle({...item,name:'Zweites Produkt',quantity:1});
+assert.equal((await repository.locations()).length,1,'case-sensitive duplicate name must reuse location');
+assert.notEqual(a.id,b.id);
+assert.equal((await repository.summary()).articles,2);
+const photo=new Blob(['image binary fake'],{type:'image/png'});
+await setArticleImage(a.id,photo);
+assert.equal((await articleImages([a.id])).length,1);
+assert.equal((await articleImages([b.id])).length,0);
+const html=await articlesView();assert.match(html,/WC Reiniger/);assert.match(html,/Bearbeiten/);assert.match(html,/Artikelfoto/);
+clearArticleMediaUrls();
+await setArticleImage(a.id,null);assert.equal((await articleImages([a.id])).length,0);
+await assert.rejects(()=>updateCatalogArticle(a.id,{...item,unit:'kg',locationId:a.primaryLocationId}),{code:'VALIDATION'});
+await assert.rejects(()=>updateCatalogArticle(a.id,{...item,locationName:'Garage',locationId:'',quantity:2.5}),{code:'VALIDATION'});
+assert.equal((await repository.locations()).length,1,'failed edit must roll back new location');
+await updateCatalogArticle(a.id,{...item,locationId:a.primaryLocationId,quantity:3.5,notes:'Geändert'});
+assert.equal((await repository.stocks()).find(s=>s.articleId===a.id).quantity,3.5);
+assert.equal((await repository.movements(a.id)).length,2);
+assert.equal((await repository.articles()).find(x=>x.id===a.id).notes,'Geändert');
+const dup=await duplicateCatalogArticle(a.id);assert.notEqual(dup.id,a.id);assert.match(dup.name,/\(Kopie\)$/);
+assert.equal((await repository.stocks()).filter(s=>s.articleId===dup.id).length,0,'copy starts with zero inventory');
+let removed=await deleteCatalogArticle(dup.id);assert.equal(removed.archived,false);assert.ok(!(await repository.articles()).find(x=>x.id===dup.id));
+await assert.rejects(()=>deleteCatalogArticle(a.id),{code:'IN_USE'});
+await updateCatalogArticle(a.id,{...item,locationId:a.primaryLocationId,quantity:0});
+removed=await deleteCatalogArticle(a.id);assert.equal(removed.archived,true);
+assert.ok((await repository.articles()).find(x=>x.id===a.id).archivedAt);
+assert.ok((await repository.movements(a.id)).length>=3,'history must survive archive');
+await restoreArchivedArticle(a.id);
+assert.equal((await repository.articles()).find(x=>x.id===a.id).archivedAt,undefined);
+console.log('PASS U03: required fields, categories, stock transaction, location reuse, measurement compatibility, image lifecycle, edits, rollback, duplicate, guarded delete/archive/restore, history');
