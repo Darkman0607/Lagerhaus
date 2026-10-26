@@ -15,12 +15,12 @@ assert.equal(manifest.start_url,'./');assert.equal(manifest.scope,'./');assert.e
 for(const ico of manifest.icons)assert.ok(existsSync(resolve(root,ico.src)));
 const shell=[...readFileSync(resolve(root,'sw.js'),'utf8').matchAll(/'\.\/[^']+'/g)].map(x=>x[0].slice(1,-1));
 for(const ref of shell)assert.ok(existsSync(resolve(root,ref)),`missing offline pre-cache: ${ref}`);
-assert.equal(DATABASE_VERSION,3);assert.equal(STORE_NAMES.length,9);
+assert.equal(DATABASE_VERSION,4);assert.equal(STORE_NAMES.length,9);
 assert.equal(validateQuantity(1.005),1.005);
 assert.throws(()=>validateQuantity(NaN),{code:'VALIDATION'});
 assert.throws(()=>validateQuantity(-1e12),{code:'VALIDATION'});
 assert.equal(escapeHtml('<script>'), '&lt;script&gt;');
 assert.equal(friendlyStorageError({name:'QuotaExceededError'}).code,'QUOTA');
 const css=readFileSync(resolve(root,'assets/styles.css'),'utf8');assert.ok(css.includes('@media(max-width:700px)'));assert.ok(css.includes('.bottom-nav'));
-const versions=JSON.parse(readFileSync(resolve(root,'version.json'),'utf8'));assert.equal(versions.version,'0.4.0');
+const versions=JSON.parse(readFileSync(resolve(root,'version.json'),'utf8'));assert.equal(versions.version,'0.5.0');
 console.log('PASS: routes, safe HTML, validation, migration schema, PWA shell inventory, version');

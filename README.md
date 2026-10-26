@@ -1,8 +1,18 @@
-# Lagerhaus — V0.4.0 · Update U04
+# Lagerhaus — V0.5.0 · Update U05
 
 Offlinefähige, lokal speichernde Lagerverwaltung für **Privat und Arbeit** mit industriell-professioneller Oberfläche nach der festgelegten Designreferenz. Die interaktive isometrische **3D-Lageransicht** ist ausschließlich für den Bereich Lager/Lagerorte vorgesehen (geplant für U09).
 
-## Neu mit U04 · Kategorien und Privat/Arbeit
+## Neu mit U05 · Lagerorte und Bestände je Ort
+
+1. Standort/Raum/Regal/Fach/Box als frei verschachtelbare Hierarchie. Kreis- und Duplikatsschutz.
+2. Ein Artikel an beliebig vielen Lagerorten mit getrennten Mengen; Gesamtsumme bleibt synchron.
+3. Orte anlegen, umbenennen, verschieben und geschützt archivieren. Keine automatische Löschung von Bestands- oder Buchungsdaten.
+4. Atomare Umlagerung (Quelle → Ziel) mit Protokoll, Notiz und geschütztem Rückgängig.
+5. Belegungsübersicht mit Artikeln, Favoriten und Unterbeständen; direkter Filter zur Artikelübersicht.
+
+**Wichtig:** Artikel mit Beständen an mehreren Orten können weiterhin in ihren Stammdaten bearbeitet werden. Die Mengenänderung im Artikel-Editor bleibt in diesem Fall gesperrt; sie ist über „Lager → Umlagern“ vorzunehmen. Die vollständige Ein-/Ausbuchung folgt in U06.
+
+## Bisherige Funktionen U04 · Kategorien und Privat/Arbeit
 
 1. **Drei Verwendungsbereiche:** Privat, Arbeit oder Gemeinsam. Die Artikelliste lässt sich nach Privat inkl. Gemeinsam, Arbeit inkl. Gemeinsam oder ausschließlich Gemeinsam filtern; gemeinsamer Bestand wird nicht dupliziert.
 2. **Kategorien & Unterkategorien:** Zehn Startkategorien aus dem privaten/beruflichen Alltag; eigene Kategorien im Artikeldialog unter „Kategorien verwalten“ anlegen, hierarchisch zuordnen, nach oben/unten sortieren oder umbenennen. Bezeichnungen müssen eindeutig sein; kreisförmige Unterkategorien sind gesperrt.
@@ -29,4 +39,4 @@ Zum lokalen Testen `python -m http.server 8000` im App-Ordner starten und `http:
 
 **Noch keine Backup-/Restore-Funktion vor U10.** Die Daten liegen ausschließlich im lokalen Browserprofil; das Löschen von Website-/Browserdaten kann alle Artikel und Fotos unwiederbringlich entfernen. Kein Konto, keine Cloud-Synchronisation. Vor der Nutzung mit wichtigen Echtbeständen muss die Datensicherung nachgerüstet und am Gerät abgenommen werden.
 
-Die 3D-Lageransicht folgt erst U09; U05 bringt die Lagerorthierarchie, U06 Bestandsumbuchungen, U07 weitere Listenfilter. Bestehende Mengen dürfen nicht still verändert werden. Die Kategorieverwaltung arbeitet deshalb nur auf Kategorie- und Artikelstammdaten, nicht auf Bewegungen oder Ortsbeständen.
+Die 3D-Lageransicht folgt erst U09. U05 enthält Umlagerungen von Ort zu Ort, aber noch keine allgemeinen Ein-/Ausbuchungsmasken (U06). U07 ergänzt weitere Filter. Bestehende Mengen dürfen nicht still verändert werden. Die Kategorieverwaltung arbeitet deshalb nur auf Kategorie- und Artikelstammdaten, nicht auf Bewegungen oder Ortsbeständen.

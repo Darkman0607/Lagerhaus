@@ -39,3 +39,59 @@
 .category-move select{flex:1;min-width:135px}
 .catalog-form-grid [data-kind-only][hidden]{display:none}
 @media(max-width:720px){.category-create-form{grid-template-columns:1fr}.catalog-section-filter{width:100%}.catalog-section-filter select{flex:1}.category-open-btn{width:100%;justify-content:center}}
+
+/* U05 | hierarchische Lagerortverwaltung, belegungsbezogene Karten, Transfer-UI */
+.location-panel,.location-transfer-panel{padding:0;margin-bottom:18px;overflow:hidden}
+.location-panel .location-hint,.location-transfer-panel .location-hint{font-size:12px;color:#9bb9bb;line-height:1.65;margin:15px 23px}
+.location-create-form,.location-transfer-form{display:grid;grid-template-columns:1.5fr 1fr 1.5fr auto;align-items:end;gap:12px;padding:6px 23px 20px}
+.location-transfer-form{grid-template-columns:1.4fr 1.3fr 1.3fr .65fr}
+.location-create-form label,.location-transfer-form label{display:flex;flex-direction:column;gap:7px;min-width:0;color:#acccc7;font-size:11px;font-weight:700}
+.location-create-form input,.location-create-form select,.location-transfer-form input,.location-transfer-form select{min-width:0;width:100%;height:43px;border:1px solid #3a5558;border-radius:9px;background:#11242b;color:#e6f2ed;padding:0 12px;outline-offset:3px;font-size:12px}
+.location-create-form .primary-btn,.location-transfer-form .primary-btn{min-height:43px;white-space:nowrap}
+.location-transfer-form .wide{grid-column:span 3}
+.location-error{font-size:12px;padding:12px 16px;margin:0 23px 18px;border-left:3px solid #ef8888;background:#4a232e;color:#ffd5d5;border-radius:6px}
+.location-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:13px;padding:4px 22px 22px}
+.location-card{border:1px solid #355150;background:linear-gradient(145deg,#182c33,#142229);padding:18px 18px 14px;border-radius:13px;box-shadow:0 3px 10px #09130f36;position:relative;min-width:0}
+.location-card:before{content:"";position:absolute;top:0;left:0;width:4px;height:100%;border-radius:13px 0 0 13px;background:#2fa67f;opacity:calc(1 - min(var(--loc-depth),6) * .09)}
+.location-card-head{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+.location-eyebrow{font-size:10px;color:#a7c6c1;line-height:1.65;word-break:break-word}
+.location-card h3{font-size:17px;margin:8px 0 0;letter-spacing:-.4px}
+.location-count{background:#205447;color:#b7f5d3;padding:6px 9px;border-radius:8px;font-size:10px;font-weight:700;white-space:nowrap}
+.location-indicators{display:flex;flex-wrap:wrap;gap:8px 13px;color:#b5cbc6;font-size:10px;margin:15px 0;align-items:center}
+.location-indicators span{display:flex;align-items:center;gap:5px}
+.location-warning{color:#ffbf87}
+.location-items{border-top:1px solid #34504c;border-bottom:1px solid #34504c;margin-top:12px;padding:6px 0;max-height:190px;overflow:auto}
+.location-item{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:9px 0;font-size:11px}
+.location-item:not(:last-child){border-bottom:1px solid #2b4544}
+.location-item strong{font-weight:650;overflow-wrap:anywhere}
+.location-item span{color:#8cdbc1;white-space:nowrap}
+.location-empty{font-size:12px;color:#89a7a9;padding:15px 2px}
+.location-actions{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-top:14px}
+.location-actions button,.location-history-row button{font-size:11px;border:1px solid #3d625b;border-radius:8px;background:#223f3e;padding:9px 11px;color:#d4e9e0}
+.location-actions .location-danger{border-color:#6b4448;color:#ffc2c2;background:#39252e}
+.location-link{font-size:11px;min-height:35px;padding:8px 10px;display:inline-flex;text-decoration:none}
+.location-subtitle{padding:0 23px;margin:8px 0 11px;font-size:14px}
+.location-history{padding:0 23px 20px}
+.location-history-row{display:flex;justify-content:space-between;align-items:center;gap:12px;border-top:1px solid #304644;padding:13px 0}
+.location-history-row strong{font-size:12px;display:block}
+.location-history-row small{display:block;color:#9ab6af;font-size:11px;line-height:1.55;margin-top:3px}
+.location-edit-form{padding:0;grid-template-columns:1fr 1fr}
+.location-edit-form label:first-child{grid-column:span 2}
+.location-dialog-actions{display:flex;justify-content:flex-end;gap:10px;grid-column:span 2}
+.location-panel .large-empty{min-height:240px}
+.location-panel .large-empty h2{margin-top:12px}
+.location-panel .large-empty p{max-width:480px}
+.catalog-location-quantities{display:flex;flex-wrap:wrap;gap:6px;margin-top:9px}
+.catalog-location-quantities span{display:inline-block;padding:4px 8px;border-radius:6px;background:#1b473e;color:#bce9d6;font-size:10px}
+.catalog-quantity-note{font-size:11px;color:#f3bb8e;line-height:1.5}
+.catalog-section-filter select[data-catalog-location]{max-width:235px}
+.location-panel .list-heading,.location-transfer-panel .list-heading{padding:17px 23px}
+@media(max-width:1120px){.location-grid{grid-template-columns:1fr}.location-create-form,.location-transfer-form{grid-template-columns:repeat(2,minmax(0,1fr))}.location-transfer-form .wide{grid-column:span 2}.location-create-form .primary-btn,.location-transfer-form .primary-btn{justify-self:start}}
+@media(max-width:700px){.location-panel,.location-transfer-panel{padding:0}.location-grid{padding:5px 13px 16px;gap:10px}.location-card{padding:15px}.location-card h3{font-size:15px}.location-indicators{gap:8px}.location-create-form,.location-transfer-form{grid-template-columns:1fr;padding:6px 13px 17px;gap:11px}.location-transfer-form .wide{grid-column:1}.location-create-form .primary-btn,.location-transfer-form .primary-btn{width:100%;justify-content:center}.location-panel .location-hint,.location-transfer-panel .location-hint{margin:12px 14px}.location-panel .list-heading,.location-transfer-panel .list-heading{padding:15px}.location-subtitle,.location-history{padding-left:14px;padding-right:14px}.location-edit-form{grid-template-columns:1fr;padding:0}.location-edit-form label:first-child,.location-dialog-actions{grid-column:1}.location-dialog-actions button{flex:1}.catalog-section-filter select[data-catalog-location]{max-width:unset}}
+/* Reserved preview section is now only a compact roadmap note. */
+.location-transfer-panel+.warehouse-future{min-height:0;padding:23px 27px;display:block}
+.location-transfer-panel+.warehouse-future .future-caption{width:100%;padding:0}
+.location-transfer-panel+.warehouse-future .future-caption h2{font-size:18px;margin:12px 0 6px}
+.location-transfer-panel+.warehouse-future .future-caption p{max-width:850px;margin:0}
+/* Browser-native hidden attribute must win over card display rules. */
+.catalog-card[hidden],.catalog-form-grid [hidden],.location-error[hidden]{display:none!important}

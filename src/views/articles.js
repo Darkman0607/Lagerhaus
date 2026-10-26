@@ -2,6 +2,7 @@ import {icon} from '../core/icons.js';
 import {escapeHtml as esc} from '../core/escape.js';
 import {repository,StorageError} from '../data/store.js';
 import {listCategories,createCategory,editCategory,reorderCategory,categoryPath,ARTICLE_KINDS} from '../data/categories.js';
+import {locationPath} from '../data/locations.js';
 import {UNITS,convertQuantity,createCatalogArticle,updateCatalogArticle,duplicateCatalogArticle,deleteCatalogArticle,restoreArchivedArticle,articleImages,setArticleImage} from '../data/catalog.js';
 let knownArticles=[],knownLocations=[],knownStocks=[],knownPhotos=[],knownCategories=[],urls=[];
 const safe=v=>esc(v??'');
@@ -10,7 +11,7 @@ const displaySection={privat:'Privat',arbeit:'Arbeit',gemeinsam:'Gemeinsam'};
 const categoryTitle=id=>{const x=knownCategories.find(c=>c.id===id);return x?categoryPath(x,knownCategories):'Ohne Kategorie';};
 const fmt=n=>new Intl.NumberFormat('de-AT',{maximumFractionDigits:3}).format(n);
 const total=id=>knownStocks.filter(s=>s.articleId===id).reduce((t,s)=>t+s.quantity,0);
-const loc=id=>knownLocations.find(l=>l.id===id)?.name||'Nicht zugewiesen';
+const loc=id=>locationPath(id,knownLocations)||'Nicht zugewiesen';
 const imageFor=id=>knownPhotos.find(m=>m.ownerId===id);
 const thumb=id=>{const photo=imageFor(id);if(!photo?.blob||!['image/jpeg','image/png','image/webp'].includes(photo.blob.type))return `<div class="catalog-thumb">${icon('box',25)}</div>`;const url=URL.createObjectURL(photo.blob);urls.push(url);return `<img class="catalog-thumb" src="${url}" alt="Artikelfoto">`;};
 export function clearArticleMediaUrls(){urls.forEach(u=>URL.revokeObjectURL(u));urls=[];}
@@ -19,13 +20,14 @@ export async function articlesView(){
  knownArticles=a;knownLocations=l;knownStocks=s;knownCategories=c;
  try{knownPhotos=await articleImages(a.map(x=>x.id));}catch{knownPhotos=[];}
  const live=a.filter(x=>!x.archivedAt),arch=a.filter(x=>x.archivedAt);
- const cards=live.map(x=>`<article class="catalog-card" data-article-entry data-section="${safe(x.section||'privat')}" data-search="${safe([x.name,x.category,categoryTitle(x.categoryId),x.brand,x.model,loc(x.primaryLocationId),...(x.tags||[]),...Object.entries(x.attributes||{}).flat()].join(' ').toLocaleLowerCase('de'))}">
- ${thumb(x.id)}<div class="catalog-detail"><div class="catalog-name">${safe(x.name)} ${x.favorite?'<span class="favorite-mark" title="Favorit">★</span>':''}</div><div class="catalog-tags"><span>${safe(categoryTitle(x.categoryId)||x.category)}</span><span>${safe(displaySection[x.section]||'Privat')}</span><span>${safe(ARTICLE_KINDS.find(([k])=>k===x.articleKind)?.[1]||'Wiederverwendbar')}</span><span>${safe(loc(x.primaryLocationId))}</span></div></div>
+ const selectedLocation=(globalThis.location?.hash||'').match(/^#\/articles\/location\/([0-9a-f-]{36})/i)?.[1]||'';
+ const cards=live.map(x=>`<article class="catalog-card" ${selectedLocation&&!knownStocks.some(s=>s.articleId===x.id&&s.quantity>0&&s.locationId===selectedLocation)?'hidden':''} data-article-entry data-section="${safe(x.section||'privat')}" data-locations="${safe(knownStocks.filter(s=>s.articleId===x.id&&s.quantity>0).map(s=>s.locationId).join(' '))}" data-search="${safe([x.name,x.category,categoryTitle(x.categoryId),x.brand,x.model,loc(x.primaryLocationId),...(x.tags||[]),...Object.entries(x.attributes||{}).flat()].join(' ').toLocaleLowerCase('de'))}">
+ ${thumb(x.id)}<div class="catalog-detail"><div class="catalog-name">${safe(x.name)} ${x.favorite?'<span class="favorite-mark" title="Favorit">★</span>':''}</div><div class="catalog-tags"><span>${safe(categoryTitle(x.categoryId)||x.category)}</span><span>${safe(displaySection[x.section]||'Privat')}</span><span>${safe(ARTICLE_KINDS.find(([k])=>k===x.articleKind)?.[1]||'Wiederverwendbar')}</span><span>${safe(loc(x.primaryLocationId))}</span></div><div class="catalog-location-quantities">${knownStocks.filter(s=>s.articleId===x.id&&s.quantity>0).map(s=>`<span>${safe(loc(s.locationId))}: ${fmt(s.quantity)} ${safe(x.unit||'Stück')}</span>`).join('')}</div></div>
  <div class="catalog-quantity"><strong>${fmt(total(x.id))}</strong><small>${safe(x.unit||'Stück')}</small></div>
  <div class="catalog-actions"><button type="button" data-catalog="edit" data-id="${safe(x.id)}" title="Bearbeiten">Bearbeiten</button><button type="button" data-catalog="duplicate" data-id="${safe(x.id)}" title="Kopieren">Kopieren</button><button class="danger-action" type="button" data-catalog="delete" data-id="${safe(x.id)}" title="Artikel löschen">Löschen</button></div></article>`).join('');
  const archive=arch.map(x=>`<div class="catalog-archive-row"><span>${safe(x.name)} <small>archiviert · Bestand 0 · Buchungshistorie bleibt erhalten</small></span><button data-catalog="restore" data-id="${safe(x.id)}" type="button">Wiederherstellen</button></div>`).join('');
  return `<section class="page-heading"><div><p class="eyebrow">STAMMDATEN / ARTIKEL</p><h1>Artikel</h1><p>Bestände und Bilder bleiben lokal auf diesem Gerät.</p></div><button class="primary-btn" data-catalog="new" type="button">${icon('plus',18)} Artikel anlegen</button></section>
- <article class="panel catalog-panel"><div class="catalog-toolbar"><label class="catalog-search">${icon('search',17)}<input data-catalog-search type="search" placeholder="Artikel, Tags, Merkmale suchen" aria-label="Artikel suchen"></label><label class="catalog-section-filter">Bereich <select data-catalog-section aria-label="Bereich filtern"><option value="alle">Alle Bereiche</option><option value="privat">Privat + Gemeinsam</option><option value="arbeit">Arbeit + Gemeinsam</option><option value="gemeinsam">Nur gemeinsam</option></select></label><span class="chip quiet">${live.length} aktive Artikel</span><button type="button" class="secondary-btn category-open-btn" data-category-action="open">Kategorien verwalten</button></div>
+ <article class="panel catalog-panel"><div class="catalog-toolbar"><label class="catalog-search">${icon('search',17)}<input data-catalog-search type="search" placeholder="Artikel, Tags, Merkmale suchen" aria-label="Artikel suchen"></label><label class="catalog-section-filter">Bereich <select data-catalog-section aria-label="Bereich filtern"><option value="alle">Alle Bereiche</option><option value="privat">Privat + Gemeinsam</option><option value="arbeit">Arbeit + Gemeinsam</option><option value="gemeinsam">Nur gemeinsam</option></select></label><label class="catalog-section-filter">Lagerort <select data-catalog-location><option value="">Alle Lagerorte</option>${knownLocations.filter(x=>!x.archivedAt).map(x=>`<option value="${safe(x.id)}" ${selectedLocation===x.id?'selected':''}>${safe(loc(x.id))}</option>`).join('')}</select></label><span class="chip quiet">${live.length} aktive Artikel</span><button type="button" class="secondary-btn category-open-btn" data-category-action="open">Kategorien verwalten</button></div>
  <div id="catalog-list">${cards||`<div class="large-empty">${icon('box',38)}<h2>Dein Lager ist noch leer</h2><p>Lege jetzt deinen ersten Artikel an. Du benötigst nur Name, Kategorie, Lagerort und Menge.</p><button class="primary-btn" data-catalog="new" type="button">${icon('plus',17)} Ersten Artikel anlegen</button></div>`}</div><p id="catalog-search-empty" hidden>Keine Artikel zu dieser Suche gefunden.</p></article>
  ${arch.length?`<details class="panel catalog-archived"><summary>Archivierte Artikel (${arch.length})</summary>${archive}</details>`:''}
  <p class="catalog-data-note">Hinweis: Fotos und Bestände sind nur in diesem Browserprofil gespeichert. Eine Backup-Funktion folgt in Update 10. Lösche bis dahin keine Browserdaten.</p>
@@ -34,15 +36,15 @@ export async function articlesView(){
 function editor(id){
  const x=knownArticles.find(v=>v.id===id),editing=!!x,unit=x?.unit||'Stück',unitOptions=options(UNITS,unit),location=x?.primaryLocationId||'';
  const catOptions=knownCategories.map(c=>`<option value="${safe(c.id)}" ${c.id===(x?.categoryId||knownCategories[0]?.id)?'selected':''}>${safe(categoryPath(c,knownCategories))}</option>`).join('');
- const locOptions=knownLocations.map(l=>`<option value="${safe(l.id)}" ${l.id===location?'selected':''}>${safe(l.name)}</option>`).join('');
- const qty=editing?total(x.id):0;
+ const locOptions=knownLocations.filter(l=>!l.archivedAt).map(l=>`<option value="${safe(l.id)}" ${l.id===location?'selected':''}>${safe(loc(l.id))}</option>`).join('');
+ const qty=editing?total(x.id):0;const multiple=editing&&knownStocks.filter(s=>s.articleId===id&&s.quantity>0).some(s=>s.locationId!==location);
  return `<form id="catalog-form" class="catalog-form" method="dialog" data-edit-id="${safe(id||'')}"><div class="catalog-dialog-head"><span class="eyebrow">LAGERHAUS / ARTIKELSTAMM</span><button type="button" class="modal-close" data-catalog="close" aria-label="Schließen">${icon('x',20)}</button></div><h2 id="catalog-dialog-title">${editing?'Artikel bearbeiten':'Neuen Artikel erfassen'}</h2><p class="form-subtitle">Vier Pflichtangaben – alles Weitere ist optional.</p>
  <div class="catalog-form-grid"><label class="wide">Artikelname *<input required maxlength="160" name="name" value="${safe(x?.name)}" placeholder="z. B. WC-Reiniger"></label>
  <label>Kategorie *<select required name="categoryId">${catOptions}</select></label>
  <label>Bereich<select name="section">${options(['privat','arbeit','gemeinsam'],x?.section||'privat')}</select></label><label>Artikeltyp<select name="articleKind" id="article-kind">${ARTICLE_KINDS.map(([v,label])=>`<option value="${v}" ${v===(x?.articleKind||'reusable')?'selected':''}>${label}</option>`).join('')}</select></label>
  <label>Lagerort *<select name="locationId" id="catalog-location-choice"><option value="">Neuen Lagerort eingeben</option>${locOptions}</select></label>
  <label>Neuer Lagerort<input maxlength="100" name="locationName" placeholder="z. B. Keller / Regal A" value="${location?'':'Garage'}"></label>
- <label>Menge *<input type="number" name="quantity" min="0" max="1000000000" step="0.001" required value="${qty}"></label>
+ <label>Menge *<input type="number" name="quantity" min="0" max="1000000000" step="0.001" required value="${qty}" ${multiple?'readonly title="Mehrere Lagerorte: Mengenänderungen über Lager / Umlagern"':''}>${multiple?'<small class="catalog-quantity-note">Auf mehrere Orte verteilt – nur unter Lager umlagern.</small>':''}</label>
  <label>Einheit<select name="unit">${unitOptions}</select></label></div>
  <details class="catalog-extra"><summary>Weitere Artikeldetails und Packungsinhalt</summary><div class="catalog-form-grid">
  ${[['brand','Marke',70],['model','Modell',80],['type','Typ',80],['manufacturer','Hersteller',100],['serialNumber','Seriennummer',100],['color','Farbe',60],['condition','Zustand',60]].map(([key,label,max])=>`<label>${label}<input name="${key}" maxlength="${max}" value="${safe(x?.[key])}"></label>`).join('')}
@@ -77,12 +79,12 @@ export async function handleCatalogSubmit(form,refresh){const button=form.queryS
  close();await refresh();
  }catch(e){showError(e);}finally{button.disabled=false;}}
 export function handleCatalogInput(e){
- if(e.target.matches('[data-catalog-search], [data-catalog-section]')){
+ if(e.target.matches('[data-catalog-search], [data-catalog-section], [data-catalog-location]')){
   const q=document.querySelector('[data-catalog-search]')?.value.trim().toLocaleLowerCase('de')||'';
-  const area=document.querySelector('[data-catalog-section]')?.value||'alle';let shown=0;
+  const area=document.querySelector('[data-catalog-section]')?.value||'alle';const place=document.querySelector('[data-catalog-location]')?.value||'';let shown=0;
   for(const row of document.querySelectorAll('[data-article-entry]')){
    const matchArea=area==='alle'||row.dataset.section===area||(area!=='gemeinsam'&&row.dataset.section==='gemeinsam');
-   row.hidden=!matchArea||!row.dataset.search.includes(q);if(!row.hidden)shown++;
+   row.hidden=!matchArea||!row.dataset.search.includes(q)||(!!place&&!row.dataset.locations?.split(' ').includes(place));if(!row.hidden)shown++;
   }
   const msg=document.getElementById('catalog-search-empty');if(msg)msg.hidden=shown!==0;
  }

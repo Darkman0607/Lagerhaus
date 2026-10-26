@@ -3,7 +3,7 @@
  * No demo inventory, no network/database telemetry.
  */
 export const DATABASE_NAME = 'lagerhaus-local';
-export const DATABASE_VERSION = 3;
+export const DATABASE_VERSION = 4;
 export const STORE_NAMES = Object.freeze(['articles','locations','stocks','movements','media','purchases','audit','meta','categories']);
 const VALID_SOURCES = new Set(['manual','receipt','usage','correction','inventory','initial']);
 const MAX_QUANTITY = 1_000_000_000;
@@ -95,6 +95,16 @@ function migrate(db,tx,oldVersion){
       }
     };
   }
+  if(oldVersion<4){
+    const locations=tx.objectStore('locations');
+    locations.getAll().onsuccess=e=>{for(const row of e.target.result){
+      if(!Object.prototype.hasOwnProperty.call(row,'parentId'))row.parentId=null;
+      if(!row.kind)row.kind='raum';
+      row.schemaVersion=4;locations.put(row);
+    }};
+    makeIndex(locations,'by_parent','parentId');
+    makeIndex(makeStore(db,tx,'movements'),'by_transfer','transferId');
+  }
 }
 let openPromise;
 export function openDatabase(){
@@ -172,7 +182,7 @@ export class WarehouseRepository {
     return row;
   }
   async addLocation(input){
-    const name=validateText(input?.name,'Lagerort');const at=iso();const row={id:makeId(),name,createdAt:at,updatedAt:at,schemaVersion:DATABASE_VERSION};
+    const name=validateText(input?.name,'Lagerort');const at=iso();const row={id:makeId(),name,parentId:null,kind:'raum',createdAt:at,updatedAt:at,schemaVersion:DATABASE_VERSION};
     const db=await this.ready();await transact(db,['locations','audit'],'readwrite',tx=>{tx.objectStore('locations').add(row);tx.objectStore('audit').add(activity(makeId(),'location-created',row.id,'manual',at,{name}));});return row;
   }
   async applyMovement({articleId,locationId,delta,source='manual',note=''}){
@@ -188,7 +198,7 @@ export class WarehouseRepository {
         if(!a.result||a.result.archivedAt){tx.abort();return;}
         const l=locations.get(locationId);
         l.onsuccess=()=>{
-          if(!l.result){tx.abort();return;}
+          if(!l.result||l.result.archivedAt){tx.abort();return;}
           const lookup=stocks.index('by_article_location').get([articleId,locationId]);
           lookup.onsuccess=()=>{
             const existing=lookup.result;const before=existing?.quantity||0;

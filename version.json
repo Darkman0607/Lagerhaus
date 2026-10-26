@@ -1,7 +1,7 @@
 {
   "app": "Lagerhaus",
-  "version": "0.4.0",
-  "update": "U04",
+  "version": "0.5.0",
+  "update": "U05",
   "release_date": "2026-10-26",
-  "data_schema": 3
+  "data_schema": 4
 }

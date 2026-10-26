@@ -64,14 +64,14 @@ function txPromise(db,names,handler){
 const checkLocation=(tx,input,at,fail,then)=>{
  const locations=tx.objectStore('locations'),name=text(input?.locationName,'Lagerort',100);
  if(input?.locationId){const r=locations.get(input.locationId);r.onsuccess=()=>{
-  if(!r.result)return fail(new StorageError('Ausgewählter Lagerort existiert nicht.','VALIDATION'));
+  if(!r.result||r.result.archivedAt)return fail(new StorageError('Ausgewählter Lagerort existiert nicht oder ist archiviert.','VALIDATION'));
   then(r.result.id,r.result.name);
  };return;}
  if(!name)return fail(new StorageError('Bitte einen Lagerort auswählen oder neu eingeben.','VALIDATION'));
  const existing=locations.getAll();existing.onsuccess=()=>{
-  const match=existing.result.find(x=>x.name.toLocaleLowerCase('de')===name.toLocaleLowerCase('de'));
+  const match=existing.result.find(x=>!x.archivedAt&&!x.parentId&&x.name.toLocaleLowerCase('de')===name.toLocaleLowerCase('de'));
   if(match){then(match.id,match.name);return;}
-  const row={id:uid(),name,createdAt:at,updatedAt:at,schemaVersion:DATABASE_VERSION};locations.add(row);
+  const row={id:uid(),name,parentId:null,kind:'raum',createdAt:at,updatedAt:at,schemaVersion:DATABASE_VERSION};locations.add(row);
   tx.objectStore('audit').add({id:uid(),type:'location-created',entityId:row.id,source:'manual',createdAt:at,name});then(row.id,name);
  };
 };
@@ -121,11 +121,11 @@ export async function updateCatalogArticle(articleId,input){
     stocks.onsuccess=()=>{
      const all=stocks.result,positive=all.filter(x=>x.quantity>0),previous=all.reduce((v,x)=>v+x.quantity,0);
      if(original.unit!==f.unit&&previous>0)return fail(new StorageError('Einheit bei vorhandenem Bestand nicht ändern. Bitte Bestand zuerst auf 0 setzen.','VALIDATION'));
-     if(positive.some(x=>x.locationId!==locationId))return fail(new StorageError('Lagerortwechsel bei vorhandenem Bestand ist gesperrt. Zuerst Bestand auf 0 setzen.','VALIDATION'));
-     if(positive.length>1)return fail(new StorageError('Mehrere Lagerort-Bestände: Bitte spätere Bestandsverwaltung verwenden.','VALIDATION'));
+     if(previous>0&&locationId!==original.primaryLocationId)return fail(new StorageError('Lagerortwechsel bei vorhandenem Bestand nur über Lager → Umlagern.','VALIDATION'));
+     const multiple=positive.some(x=>x.locationId!==locationId);
+     if(multiple&&quantity!==previous)return fail(new StorageError('Bei Beständen an mehreren Orten ist die Gesamtmenge im Artikel-Editor gesperrt. Bitte Lager → Umlagern verwenden.','VALIDATION'));
      const current=all.find(x=>x.locationId===locationId);
-     const delta=Math.round((quantity-(current?.quantity||0))*1000)/1000;
-     if(positive.length===0&&previous>0)return fail(new StorageError('Mehrere Bestände vorhanden.','VALIDATION'));
+     const delta=multiple?0:Math.round((quantity-(current?.quantity||0))*1000)/1000;
      if(delta!==0){
       tx.objectStore('stocks').put({id:current?.id||uid(),articleId,locationId,quantity,createdAt:current?.createdAt||at,updatedAt:at,schemaVersion:DATABASE_VERSION});
       tx.objectStore('movements').add({id:uid(),articleId,locationId,delta,before:current?.quantity||0,after:quantity,source:'correction',note:'Korrektur im Artikel-Editor',createdAt:at,schemaVersion:DATABASE_VERSION});
