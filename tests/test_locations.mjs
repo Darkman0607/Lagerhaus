@@ -70,6 +70,6 @@ await archiveLocation(bin.id);
 assert.ok((await repository.locations()).find(x=>x.id===bin.id).archivedAt,'empty, unused bin can be archived');
 // U05-F05: warehouse view exposes real counts, transfer, linked article list and undo history.
 const markup=await warehouseView();assert.match(markup,/data-location-action="edit"/);assert.match(markup,/location-transfer-form/);assert.match(markup,/Haus \/ Keller/);assert.match(markup,/Rückgängig/);assert.match(markup,/href="#\/articles\/location\//);
-const aHtml=await articlesView();assert.match(aHtml,/catalog-location-quantities/);assert.match(aHtml,/data-catalog-location/);clearArticleMediaUrls();
+const aHtml=await articlesView();assert.match(aHtml,/catalog-location-quantities/);assert.match(aHtml,/data-catalog-filter="location"/);clearArticleMediaUrls();
 assert.ok((await repository.locations()).length>=6);
 console.log('PASS U05: v3→v4 migration, parent paths, cycles, multi-location, archive protection, atomic transfers, undo, UI integration');

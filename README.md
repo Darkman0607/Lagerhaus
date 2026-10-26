@@ -1,6 +1,18 @@
-# Lagerhaus — V0.6.0 · Update U06
+# Lagerhaus — V0.7.0 · Update U07
 
-Offlinefähige lokale Lagerverwaltung als Android-/Desktop-PWA für private und berufliche Artikel. Die bisherige professionelle dunkle Industrieoberfläche bleibt erhalten; die interaktive 3D-Lageransicht ist erst für U09 vorgesehen.
+U07 baut auf V0.6.0 auf: Desktop-Tabellen und mobile Kacheln, Wortsuche nach Feldern einschließlich stabiler Artikel-ID, kombinierbare Filter, persistente Sortierung und Favoriten, Artikeldetail-Dialog mit Allgemein/Bilder/Verlauf und eine prüfbare Bestandsbuchung.
+
+- Filter: Bereich, Kategorie (auch Unterkategorien), Ort, Typ, Ampel, Änderung innerhalb von 7/30 Tagen, Favorit.
+- Suche: Tokenbasiert und ohne Groß-/Kleinschreibung; unterstützt Name, Marke, Modell, Tags, Seriennummer, Standorte und ART-Kurzreferenz.
+- Artikelreferenz `ART-XXXXXXXX` wird aus den ersten acht Zeichen der unveränderlichen UUID abgeleitet. Keine neue Geschäftsvorgangsnummer.
+- Sortierung und Ansicht werden lokal via Browser-Lokalspeicher gespeichert (funktioniert ohne Anmeldung); bei blockiertem Speicher bleibt der Zustand bis zum erneuten Öffnen erhalten.
+- Favoriten werden über eine transaktionale Änderung des Stammdatensatzes gesetzt; kein Bestandsverlust.
+- Bestandsänderungen aus der Detailansicht erzeugen echte Buchungen mit Bewegungsprotokoll, nicht nur visuelle Mengenkorrekturen.
+- Keine Änderungen am Datenbankschema (weiterhin Schema 5). Eine bestehende V0.6.0-Datenbank wird unverändert verwendet.
+- `npm test`: acht Testsuiten. Android/Pages/PWA-Installation und Offline-Neustart sind weiterhin am echten Gerät abzunehmen.
+- Vor U10 keine Browserdaten löschen! Vollständiges Backup/Restore ist noch nicht vorhanden.
+
+## Bisherige Funktionen
 
 ## Neu in U06 · Fünf Funktionen
 

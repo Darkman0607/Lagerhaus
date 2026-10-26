@@ -8,6 +8,7 @@ function activityLabel(entry){
 }
 export async function dashboardView(){
  const [s,activity]=await Promise.all([repository.summary(),repository.recentActivity(5)]);
+ const allArticles=await repository.articles();const favorites=allArticles.filter(x=>x.favorite&&!x.archivedAt).sort((a,b)=>a.name.localeCompare(b.name,'de')).slice(0,5);
  const hasArticles=s.articles>0;
  const history=activity.length?`<div class="activity-list">${activity.map(entry=>`<div class="activity-item"><strong>${activityLabel(entry)}</strong><small>${escapeHtml(entry.name||entry.source||'Lokale Aktion')} · ${new Date(entry.createdAt).toLocaleString('de-AT')}</small></div>`).join('')}</div>`:`<div class="empty-panel">${icon('clipboard',30)}<h3>Keine Aktivitäten vorhanden</h3><p>Artikeländerungen und Bestandsbuchungen werden hier automatisch protokolliert.</p></div>`;
  return `<section class="page-heading"><div><p class="eyebrow">ÜBERBLICK / BESTAND</p><h1>Dashboard</h1><p>Alles Wichtige für dein Lager auf einen Blick.</p></div><button class="primary-btn" data-route="articles">${icon('plus',18)} Artikel erfassen </button></section>
@@ -17,9 +18,10 @@ export async function dashboardView(){
  ${metric('alert','Fehlbestand',s.outOfStock,'red',s.outOfStock?'Mindestbestand unterschritten':'Keine fehlenden Artikel')}
  ${metric('shopping','Offener Einkauf',s.openPurchases,'blue',s.openPurchases?'Einkaufspositionen offen':'Keine Einkaufspositionen')}
  </section>
+ <section class="u07-favorites panel"><div class="panel-heading"><div><span class="eyebrow">SCHNELLZUGRIFF</span><h2>Meine Favoriten</h2></div><span class="chip quiet">${favorites.length} angezeigt</span></div>${favorites.length?`<div class="u07-favorites-list">${favorites.map(x=>`<a href="#/articles/favorites" class="u07-favorite-link">★ ${escapeHtml(x.name)}</a>`).join('')}</div>`:'<p class="u07-favorites-empty">Noch keine Favoriten. Markiere Artikel mit dem Stern in der Artikelliste.</p>'}</section>
  <section class="dashboard-grid">
    <article class="panel stock-panel"><div class="panel-heading"><div><span class="eyebrow">LAGERANALYSE</span><h2>Bestandsverteilung</h2></div><span class="chip quiet">Lokale Daten</span></div><div class="blank-analytics"><div class="ring-empty"><span>${s.articles}<strong>Artikel</strong></span></div><div><h3>${hasArticles?'Artikelbestand erfasst':'Noch keine Bestandsdaten'}</h3><p>${hasArticles?'Detaildiagramme nach Kategorien folgen in einer späteren Version.':'Sobald du Artikel anlegst, erscheint hier die Bestandsverteilung nach Kategorien.'}</p><button class="text-action" data-route="articles">Zu Artikeln ${icon('arrow',16)}</button></div></div></article>
    <article class="panel"><div class="panel-heading"><div><span class="eyebrow">PROTOKOLL</span><h2>Letzte Aktivitäten</h2></div>${icon('clock',19)}</div>${history}</article>
  </section>
- <section class="quick-panel"><div class="quick-copy"><span class="chip success">V0.6.0 · Buchungen</span><h2>Dein Lager. Übersichtlich erfasst.</h2><p>Ein- und Ausbuchungen, Korrekturen, Warnschwellen und stornierbare Bewegungen bleiben im lokalen Protokoll. Der 3D-Lagerplan folgt in Update 9.</p></div><div class="quick-buttons"><button class="secondary-btn" data-route="warehouse">${icon('warehouse',18)} Lager ansehen</button><button class="secondary-btn" data-route="more">${icon('shield',18)} Speicher prüfen</button></div></section>`;
+ <section class="quick-panel"><div class="quick-copy"><span class="chip success">V0.7.0 · Buchungen</span><h2>Dein Lager. Übersichtlich erfasst.</h2><p>Ein- und Ausbuchungen, Korrekturen, Warnschwellen und stornierbare Bewegungen bleiben im lokalen Protokoll. Der 3D-Lagerplan folgt in Update 9.</p></div><div class="quick-buttons"><button class="secondary-btn" data-route="warehouse">${icon('warehouse',18)} Lager ansehen</button><button class="secondary-btn" data-route="more">${icon('shield',18)} Speicher prüfen</button></div></section>`;
 }

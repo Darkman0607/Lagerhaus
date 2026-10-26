@@ -3,7 +3,9 @@ import {escapeHtml as esc} from '../core/escape.js';
 import {repository,StorageError} from '../data/store.js';
 import {listCategories,createCategory,editCategory,reorderCategory,categoryPath,ARTICLE_KINDS} from '../data/categories.js';
 import {locationPath} from '../data/locations.js';
-import {UNITS,convertQuantity,createCatalogArticle,updateCatalogArticle,duplicateCatalogArticle,deleteCatalogArticle,restoreArchivedArticle,articleImages,setArticleImage} from '../data/catalog.js';
+import {articleContext, filterAndSort, normalizePreferences} from '../data/article-query.js';
+import {bookStock} from '../data/bookings.js';
+import {UNITS,convertQuantity,createCatalogArticle,updateCatalogArticle,duplicateCatalogArticle,deleteCatalogArticle,restoreArchivedArticle,articleImages,setArticleImage,setArticleFavorite} from '../data/catalog.js';
 let knownArticles=[],knownLocations=[],knownStocks=[],knownPhotos=[],knownCategories=[],urls=[];
 const safe=v=>esc(v??'');
 const options=(values,selected)=>values.map(v=>`<option value="${safe(v)}" ${v===selected?'selected':''}>${safe(v)}</option>`).join('');
@@ -15,23 +17,66 @@ const loc=id=>locationPath(id,knownLocations)||'Nicht zugewiesen';
 const imageFor=id=>knownPhotos.find(m=>m.ownerId===id);
 const thumb=id=>{const photo=imageFor(id);if(!photo?.blob||!['image/jpeg','image/png','image/webp'].includes(photo.blob.type))return `<div class="catalog-thumb">${icon('box',25)}</div>`;const url=URL.createObjectURL(photo.blob);urls.push(url);return `<img class="catalog-thumb" src="${url}" alt="Artikelfoto">`;};
 export function clearArticleMediaUrls(){urls.forEach(u=>URL.revokeObjectURL(u));urls=[];}
+const PREF_KEY='lagerhaus.catalog.preferences.v07';
+function loadPreferences(){try{return normalizePreferences(JSON.parse(localStorage.getItem(PREF_KEY)||'{}'))}catch{return normalizePreferences()}}
+let preferences=loadPreferences(),contexts=[];
+function persistPreferences(){try{localStorage.setItem(PREF_KEY,JSON.stringify(preferences))}catch{/* browser storage disabled: session still works */}}
+const statusName={rot:'Fehlbestand',orange:'Mindestbestand',gruen:'Ausreichend'};
+const statusBadge=s=>`<span class="u07-status u07-${safe(s)}">${safe(statusName[s])}</span>`;
+const ref=x=>x.id.slice(0,8).toUpperCase();
+const dateLabel=x=>x?new Date(x).toLocaleDateString('de-AT'):'—';
+function card(x){return `<article class="catalog-card u07-article-card" data-article-entry data-id="${safe(x.id)}" data-section="${safe(x.section||'privat')}" data-search="${safe(x.search)}">
+ ${thumb(x.id)}<div class="catalog-detail"><div class="catalog-name">${safe(x.name)} ${x.favorite?'<span class="favorite-mark">★</span>':''}</div><div class="u07-sku">ART-${safe(ref(x))}${x.tags?.length?` · ${safe(x.tags.join(', '))}`:''}</div><div class="catalog-tags"><span>${safe(categoryTitle(x.categoryId))}</span><span>${safe(displaySection[x.section]||'Privat')}</span><span>${safe(loc(x.primaryLocationId))}</span></div>${statusBadge(x.status)}</div>
+ <div class="catalog-location-quantities">${knownStocks.filter(z=>z.articleId===x.id&&z.quantity>0).map(z=>`<span>${safe(loc(z.locationId))}: ${fmt(z.quantity)}</span>`).join('')}</div><div class="catalog-quantity"><strong>${fmt(x.quantity)}</strong><small>${safe(x.unit||'Stück')}</small></div>
+ <div class="catalog-actions"><button data-catalog="detail" data-id="${safe(x.id)}" type="button">Details</button><button data-catalog="favorite" data-id="${safe(x.id)}" type="button" aria-label="Favorit umschalten">${x.favorite?'★':'☆'}</button><button data-catalog="edit" data-id="${safe(x.id)}" type="button">Bearbeiten</button></div></article>`;}
+function tableRow(x){return `<tr data-article-entry data-id="${safe(x.id)}"><td data-search="${safe(x.search)}"><div class="u07-table-name">${safe(x.name)}</div><small>ART-${safe(ref(x))} · ${safe(x.brand||'')} · ${safe(Object.keys(x.attributes||{}).join(', '))}</small></td><td>${safe(categoryTitle(x.categoryId))}</td><td>${safe(loc(x.primaryLocationId))}</td><td>${fmt(x.quantity)} ${safe(x.unit)}</td><td>${statusBadge(x.status)}</td><td>${dateLabel(x.updatedAt)}</td><td class="u07-table-actions"><button type="button" data-catalog="detail" data-id="${safe(x.id)}">Details</button><button type="button" data-catalog="favorite" data-id="${safe(x.id)}" aria-label="Favorit umschalten">${x.favorite?'★':'☆'}</button><button type="button" data-catalog="edit" data-id="${safe(x.id)}">Bearbeiten</button></td></tr>`;}
+function select(label,key,items){return `<label class="u07-field">${label}<select data-catalog-filter="${key}" ${key==='location'?'data-catalog-location':key==='section'?'data-catalog-section':''} aria-label="${label}">${items.map(([value,name])=>`<option value="${safe(value)}" ${preferences[key]===value?'selected':''}>${safe(name)}</option>`).join('')}</select></label>`;}
 export async function articlesView(){
  const [a,l,s,c]=await Promise.all([repository.articles(),repository.locations(),repository.stocks(),listCategories()]);
  knownArticles=a;knownLocations=l;knownStocks=s;knownCategories=c;
  try{knownPhotos=await articleImages(a.map(x=>x.id));}catch{knownPhotos=[];}
  const live=a.filter(x=>!x.archivedAt),arch=a.filter(x=>x.archivedAt);
+ contexts=live.map(x=>articleContext(x,s,l,c));
  const selectedLocation=(globalThis.location?.hash||'').match(/^#\/articles\/location\/([0-9a-f-]{36})/i)?.[1]||'';
- const cards=live.map(x=>`<article class="catalog-card" ${selectedLocation&&!knownStocks.some(s=>s.articleId===x.id&&s.quantity>0&&s.locationId===selectedLocation)?'hidden':''} data-article-entry data-section="${safe(x.section||'privat')}" data-locations="${safe(knownStocks.filter(s=>s.articleId===x.id&&s.quantity>0).map(s=>s.locationId).join(' '))}" data-search="${safe([x.name,x.category,categoryTitle(x.categoryId),x.brand,x.model,loc(x.primaryLocationId),...(x.tags||[]),...Object.entries(x.attributes||{}).flat()].join(' ').toLocaleLowerCase('de'))}">
- ${thumb(x.id)}<div class="catalog-detail"><div class="catalog-name">${safe(x.name)} ${x.favorite?'<span class="favorite-mark" title="Favorit">★</span>':''}</div><div class="catalog-tags"><span>${safe(categoryTitle(x.categoryId)||x.category)}</span><span>${safe(displaySection[x.section]||'Privat')}</span><span>${safe(ARTICLE_KINDS.find(([k])=>k===x.articleKind)?.[1]||'Wiederverwendbar')}</span><span>${safe(loc(x.primaryLocationId))}</span></div><div class="catalog-location-quantities">${knownStocks.filter(s=>s.articleId===x.id&&s.quantity>0).map(s=>`<span>${safe(loc(s.locationId))}: ${fmt(s.quantity)} ${safe(x.unit||'Stück')}</span>`).join('')}</div></div>
- <div class="catalog-quantity"><strong>${fmt(total(x.id))}</strong><small>${safe(x.unit||'Stück')}</small></div>
- <div class="catalog-actions"><button type="button" data-catalog="edit" data-id="${safe(x.id)}" title="Bearbeiten">Bearbeiten</button><button type="button" data-catalog="duplicate" data-id="${safe(x.id)}" title="Kopieren">Kopieren</button><button class="danger-action" type="button" data-catalog="delete" data-id="${safe(x.id)}" title="Artikel löschen">Löschen</button></div></article>`).join('');
- const archive=arch.map(x=>`<div class="catalog-archive-row"><span>${safe(x.name)} <small>archiviert · Bestand 0 · Buchungshistorie bleibt erhalten</small></span><button data-catalog="restore" data-id="${safe(x.id)}" type="button">Wiederherstellen</button></div>`).join('');
- return `<section class="page-heading"><div><p class="eyebrow">STAMMDATEN / ARTIKEL</p><h1>Artikel</h1><p>Bestände und Bilder bleiben lokal auf diesem Gerät.</p></div><button class="primary-btn" data-catalog="new" type="button">${icon('plus',18)} Artikel anlegen</button></section>
- <article class="panel catalog-panel"><div class="catalog-toolbar"><label class="catalog-search">${icon('search',17)}<input data-catalog-search type="search" placeholder="Artikel, Tags, Merkmale suchen" aria-label="Artikel suchen"></label><label class="catalog-section-filter">Bereich <select data-catalog-section aria-label="Bereich filtern"><option value="alle">Alle Bereiche</option><option value="privat">Privat + Gemeinsam</option><option value="arbeit">Arbeit + Gemeinsam</option><option value="gemeinsam">Nur gemeinsam</option></select></label><label class="catalog-section-filter">Lagerort <select data-catalog-location><option value="">Alle Lagerorte</option>${knownLocations.filter(x=>!x.archivedAt).map(x=>`<option value="${safe(x.id)}" ${selectedLocation===x.id?'selected':''}>${safe(loc(x.id))}</option>`).join('')}</select></label><span class="chip quiet">${live.length} aktive Artikel</span><button type="button" class="secondary-btn category-open-btn" data-category-action="open">Kategorien verwalten</button></div>
- <div id="catalog-list">${cards||`<div class="large-empty">${icon('box',38)}<h2>Dein Lager ist noch leer</h2><p>Lege jetzt deinen ersten Artikel an. Du benötigst nur Name, Kategorie, Lagerort und Menge.</p><button class="primary-btn" data-catalog="new" type="button">${icon('plus',17)} Ersten Artikel anlegen</button></div>`}</div><p id="catalog-search-empty" hidden>Keine Artikel zu dieser Suche gefunden.</p></article>
+ if(selectedLocation)preferences.location=selectedLocation;
+ if((globalThis.location?.hash||'').startsWith('#/articles/favorites'))preferences.favorite=true;
+ const visible=filterAndSort(contexts,preferences);const all=filterAndSort(contexts,{sort:preferences.sort});
+ const categoryFilter=c.map(x=>[x.id,categoryPath(x,c)]);
+ const layout=preferences.layout;
+ const archive=arch.map(x=>`<div class="catalog-archive-row"><span>${safe(x.name)} <small>Archiviert · Bewegungsverlauf erhalten</small></span><button data-catalog="restore" data-id="${safe(x.id)}" type="button">Wiederherstellen</button></div>`).join('');
+ return `<section class="page-heading"><div><p class="eyebrow">ARTIKEL / U07</p><h1>Artikelübersicht</h1><p>Alle Bestände und Fotos bleiben lokal auf diesem Gerät.</p></div><button class="primary-btn" data-catalog="new" type="button">${icon('plus',18)} Artikel anlegen</button></section>
+ <article class="panel catalog-panel u07-catalog" data-catalog-layout="${safe(layout)}">
+ <div class="u07-topline"><label class="catalog-search">${icon('search',17)}<input data-catalog-filter="query" type="search" value="${safe(preferences.query)}" placeholder="Name, USB-C, Marke, Standort, ART-ID …" aria-label="Artikel suchen" autocomplete="off"></label><label class="u07-field">Ansicht<select data-catalog-filter="layout"><option value="auto" ${layout==='auto'?'selected':''}>Automatisch</option><option value="table" ${layout==='table'?'selected':''}>Tabelle</option><option value="cards" ${layout==='cards'?'selected':''}>Kacheln</option></select></label><button type="button" class="secondary-btn" data-category-action="open">Kategorien verwalten</button></div>
+ <div class="u07-filter-grid">${select('Bereich','section',[['alle','Alle Bereiche'],['privat','Privat + Gemeinsam'],['arbeit','Arbeit + Gemeinsam'],['gemeinsam','Nur Gemeinsam']])}
+ ${select('Kategorie','category',[['','Alle Kategorien'],...categoryFilter])}
+ ${select('Lagerort','location',[['','Alle Lagerorte'],...l.filter(x=>!x.archivedAt).map(x=>[x.id,loc(x.id)])])}
+ ${select('Artikeltyp','kind',[['','Alle Typen'],...ARTICLE_KINDS])}
+ ${select('Bestand','status',[['','Alle Bestände'],['rot','Fehlbestand'],['orange','Mindestbestand'],['gruen','Ausreichend']])}
+ ${select('Geändert','changed',[['','Jederzeit'],['7','Letzte 7 Tage'],['30','Letzte 30 Tage']])}
+ ${select('Sortieren','sort',[['name','Name A–Z'],['quantity','Menge (absteigend)'],['location','Lagerort'],['changed','Zuletzt geändert'],['status','Bestandsstatus']])}
+ <label class="u07-checkbox"><input type="checkbox" data-catalog-filter="favorite" ${preferences.favorite?'checked':''}> Nur Favoriten</label>
+ <button type="button" data-catalog="reset-filters" class="secondary-btn u07-reset">Filter zurücksetzen</button></div>
+ <div class="u07-results"><strong id="catalog-count">${visible.length} / ${live.length} Artikel</strong><span>Suche und Filter lassen sich kombinieren.</span></div>
+ <div class="u07-table-scroll"><table class="u07-table"><thead><tr><th>Artikel</th><th>Kategorie</th><th>Lagerort</th><th>Bestand</th><th>Status</th><th>Geändert</th><th>Aktion</th></tr></thead><tbody id="catalog-table-body">${all.map(x=>tableRow(x)).join('')}</tbody></table></div>
+ <div id="catalog-card-list" class="u07-cards">${all.map(x=>card(x)).join('')}</div>
+ <p id="catalog-search-empty" ${visible.length?'hidden':''}>Keine passenden Artikel. Passe deine Filter an oder setze sie zurück.</p>
+ ${!live.length?`<div class="large-empty">${icon('box',34)}<h2>Dein Lager ist noch leer</h2><p>Lege den ersten Artikel an.</p><button class="primary-btn" type="button" data-catalog="new">Ersten Artikel anlegen</button></div>`:''}
+ </article>
  ${arch.length?`<details class="panel catalog-archived"><summary>Archivierte Artikel (${arch.length})</summary>${archive}</details>`:''}
- <p class="catalog-data-note">Hinweis: Fotos und Bestände sind nur in diesem Browserprofil gespeichert. Eine Backup-Funktion folgt in Update 10. Lösche bis dahin keine Browserdaten.</p>
- <dialog id="catalog-dialog" class="catalog-dialog" aria-labelledby="catalog-dialog-title"></dialog><dialog id="categories-dialog" class="catalog-dialog" aria-labelledby="categories-dialog-title"></dialog>`;
+ <p class="catalog-data-note">Achtung: Ohne vollständiges Backup bleiben Artikel und Fotos ausschließlich in diesem Browserprofil gespeichert. Browserdaten nicht löschen.</p>
+ <dialog id="catalog-dialog" class="catalog-dialog" aria-labelledby="catalog-dialog-title"></dialog><dialog id="categories-dialog" class="catalog-dialog" aria-labelledby="categories-dialog-title"></dialog><dialog id="catalog-details" class="catalog-dialog u07-detail-dialog" aria-labelledby="u07-detail-title"></dialog>`;
+}
+function updateCatalogRows(){
+ const panel=document.querySelector('.u07-catalog');if(!panel)return;
+ panel.dataset.catalogLayout=preferences.layout;
+ const visible=filterAndSort(contexts,preferences),all=filterAndSort(contexts,{sort:preferences.sort});const ids=new Set(visible.map(x=>x.id));
+ for(const containerId of ['catalog-card-list','catalog-table-body']){
+  const parent=document.getElementById(containerId);if(!parent)continue;
+  const nodes=new Map([...parent.querySelectorAll('[data-article-entry]')].map(e=>[e.dataset.id,e]));
+  for(const x of all){const node=nodes.get(x.id);if(node){node.hidden=!ids.has(x.id);parent.appendChild(node);}}
+ }
+ const count=document.getElementById('catalog-count');if(count)count.textContent=`${visible.length} / ${contexts.length} Artikel`;
+ const empty=document.getElementById('catalog-search-empty');if(empty)empty.hidden=visible.length>0;
 }
 function editor(id){
  const x=knownArticles.find(v=>v.id===id),editing=!!x,unit=x?.unit||'Stück',unitOptions=options(UNITS,unit),location=x?.primaryLocationId||'';
@@ -65,6 +110,14 @@ function close(){const d=document.getElementById('catalog-dialog');if(!d)return;
 function showError(error){const out=document.getElementById('catalog-error');if(out){out.textContent=error?.message||'Speichern fehlgeschlagen.';out.hidden=false;}}
 export async function handleCatalogClick(button,refresh){const action=button.dataset.catalog,id=button.dataset.id;try{
  if(action==='new'){openCatalogEditor();return;}
+ if(action==='reset-filters'){preferences=normalizePreferences({sort:preferences.sort,layout:preferences.layout});persistPreferences();
+  document.querySelectorAll('[data-catalog-filter]').forEach(el=>{const k=el.dataset.catalogFilter;el.type==='checkbox'?el.checked=false:el.value=preferences[k]??'';});updateCatalogRows();return;}
+ if(action==='detail'){await openArticleDetail(id);return;}
+ if(action==='detail-close'){closeArticleDetail();return;}
+ if(action==='detail-tab'){openDetailTab(button.dataset.tab);return;}
+ if(action==='detail-edit'){closeArticleDetail();openCatalogEditor(id);return;}
+ if(action==='detail-step'){const input=document.querySelector('#u07-book-amount');if(input)input.value=String(Math.max(0.001,Math.round((Number(input.value||0)+(button.dataset.direction==='add'?1:-1))*1000)/1000));return;}
+ if(action==='favorite'){const x=knownArticles.find(a=>a.id===id);if(!x)return;await setArticleFavorite(id,!x.favorite);await refresh();return;}
  if(action==='edit'){openCatalogEditor(id);return;}
  if(action==='close'){close();return;}
  if(action==='duplicate'){const target=knownArticles.find(a=>a.id===id);if(!target||!confirm(`Artikel „${target.name}“ mit Bestand 0 kopieren?`))return;await duplicateCatalogArticle(id);await refresh();return;}
@@ -79,14 +132,10 @@ export async function handleCatalogSubmit(form,refresh){const button=form.queryS
  close();await refresh();
  }catch(e){showError(e);}finally{button.disabled=false;}}
 export function handleCatalogInput(e){
- if(e.target.matches('[data-catalog-search], [data-catalog-section], [data-catalog-location]')){
-  const q=document.querySelector('[data-catalog-search]')?.value.trim().toLocaleLowerCase('de')||'';
-  const area=document.querySelector('[data-catalog-section]')?.value||'alle';const place=document.querySelector('[data-catalog-location]')?.value||'';let shown=0;
-  for(const row of document.querySelectorAll('[data-article-entry]')){
-   const matchArea=area==='alle'||row.dataset.section===area||(area!=='gemeinsam'&&row.dataset.section==='gemeinsam');
-   row.hidden=!matchArea||!row.dataset.search.includes(q)||(!!place&&!row.dataset.locations?.split(' ').includes(place));if(!row.hidden)shown++;
-  }
-  const msg=document.getElementById('catalog-search-empty');if(msg)msg.hidden=shown!==0;
+ if(e.target.matches('[data-catalog-filter]')){
+  const key=e.target.dataset.catalogFilter;
+  preferences[key]=e.target.type==='checkbox'?e.target.checked:e.target.value;
+  preferences=normalizePreferences(preferences);persistPreferences();updateCatalogRows();
  }
  if(e.target.id==='article-kind'){
   document.querySelectorAll('[data-kind-only]').forEach(el=>el.hidden=el.dataset.kindOnly!==e.target.value);
@@ -95,6 +144,27 @@ export function handleCatalogInput(e){
   const output=document.getElementById('convert-output');if(!output)return;try{const q=Number(document.getElementById('convert-input').value),a=document.getElementById('convert-from').value,b=document.getElementById('convert-to').value;output.textContent=`${fmt(convertQuantity(q,a,b))} ${b}`;}catch(e){output.textContent=e.message;}
  }
 }
+let detailArticle=null,detailTab='allgemein';
+function closeArticleDetail(){const dialog=document.getElementById('catalog-details');if(!dialog)return;if(dialog.open&&typeof dialog.close==='function')dialog.close();else dialog.removeAttribute('open');detailArticle=null;}
+function openDetailTab(tab){if(!['allgemein','bilder','verlauf'].includes(tab))return;detailTab=tab;const target=document.getElementById('u07-detail-content');if(target)target.innerHTML=detailTabHtml();document.querySelectorAll('[data-catalog="detail-tab"]').forEach(b=>b.setAttribute('aria-selected',String(b.dataset.tab===tab)));}
+let detailHistory=[];
+function detailTabHtml(){const x=detailArticle;if(!x)return '';
+ const stocks=knownStocks.filter(s=>s.articleId===x.id);const totalQuantity=total(x.id);
+ if(detailTab==='bilder')return `<div class="u07-detail-photo">${thumb(x.id)}</div><p>Das gespeicherte Artikelfoto wird ausschließlich lokal auf deinem Gerät verwaltet.</p><button type="button" data-catalog="detail-edit" data-id="${safe(x.id)}" class="secondary-btn">Foto im Artikel-Editor ändern</button>`;
+ if(detailTab==='verlauf')return detailHistory.length?`<ol class="u07-history">${detailHistory.map(m=>`<li><strong>${safe(m.bookType||m.source||'Bestandsbuchung')}</strong> <span>${dateLabel(m.createdAt)}</span><p>${fmt(m.before??0)} → ${fmt(m.after??0)} ${safe(x.unit)} ${m.note?`· ${safe(m.note)}`:''}</p></li>`).join('')}</ol>`:'<p>Noch keine Buchungen zu diesem Artikel vorhanden.</p>';
+ return `<dl class="u07-specs"><div><dt>Marke · Modell</dt><dd>${safe([x.brand,x.model].filter(Boolean).join(' · ')||'–')}</dd></div><div><dt>Kategorie</dt><dd>${safe(categoryTitle(x.categoryId))}</dd></div><div><dt>Artikelnummer / Referenz</dt><dd>ART-${safe(ref(x))}</dd></div><div><dt>Seriennummer</dt><dd>${safe(x.serialNumber||'–')}</dd></div><div><dt>Zuletzt geändert</dt><dd>${safe(dateLabel(x.updatedAt))}</dd></div><div><dt>Tags</dt><dd>${safe((x.tags||[]).join(', ')||'–')}</dd></div></dl>
+ <h3>Lagerort-Bestände</h3><div class="u07-detail-stocks">${stocks.length?stocks.map(s=>`<div><span>${safe(loc(s.locationId))}</span><strong>${fmt(s.quantity)} ${safe(x.unit)}</strong></div>`).join(''):'<p>Bestand derzeit 0.</p>'}</div>
+ ${stocks.length?`<form id="u07-detail-book-form" class="u07-detail-book"><h3>Bestand nachvollziehbar buchen</h3><input type="hidden" name="articleId" value="${safe(x.id)}"><label>Lagerort<select name="locationId">${stocks.map(s=>`<option value="${safe(s.locationId)}">${safe(loc(s.locationId))}</option>`).join('')}</select></label><label>Vorgang<select name="type"><option value="receipt">+ Wareneingang</option><option value="issue">− Entnahme</option></select></label><label>Menge<div class="u07-amount"><button type="button" data-catalog="detail-step" data-direction="subtract" aria-label="Menge reduzieren">−</button><input id="u07-book-amount" name="quantity" value="1" type="number" min="0.001" step="0.001" required><button type="button" data-catalog="detail-step" data-direction="add" aria-label="Menge erhöhen">+</button></div></label><label>Notiz<input name="note" maxlength="500" placeholder="Optionaler Buchungsgrund"></label><button type="submit" class="primary-btn">Buchung speichern</button><p id="u07-detail-error" class="form-error" hidden role="alert"></p></form>`:'<p>Erfasse eine erste Bestandsposition unter Lager → Bestandsführung.</p>'}`;
+}
+async function openArticleDetail(id){detailArticle=knownArticles.find(x=>x.id===id);if(!detailArticle)return;detailTab='allgemein';detailHistory=await repository.movements(id);const dialog=document.getElementById('catalog-details');if(!dialog)return;
+ const a=detailArticle,model=contexts.find(x=>x.id===id);
+ dialog.innerHTML=`<div class="catalog-dialog-head"><span class="eyebrow">LAGERHAUS / ARTIKELDETAILS</span><button class="modal-close" data-catalog="detail-close" type="button" aria-label="Schließen">${icon('x',20)}</button></div>
+ <div class="u07-detail-head">${thumb(a.id)}<div><small>ART-${safe(ref(a))}</small><h2 id="u07-detail-title">${safe(a.name)}</h2><p>${safe(loc(a.primaryLocationId))}</p>${statusBadge(model?.status||'gruen')}<strong class="u07-detail-quantity">${fmt(total(a.id))} ${safe(a.unit)}</strong></div></div>
+ <div class="u07-tabs" role="tablist" aria-label="Artikeldetails">${[['allgemein','Allgemein'],['bilder','Bilder'],['verlauf','Verlauf']].map(([key,label])=>`<button type="button" role="tab" data-catalog="detail-tab" data-tab="${key}" aria-selected="${key==='allgemein'}">${label}</button>`).join('')}</div>
+ <div id="u07-detail-content">${detailTabHtml()}</div><div class="catalog-form-actions"><button type="button" class="secondary-btn" data-catalog="detail-close">Schließen</button><button type="button" class="primary-btn" data-catalog="detail-edit" data-id="${safe(a.id)}">Bearbeiten</button></div>`;
+ if(typeof dialog.showModal==='function')dialog.showModal();else dialog.setAttribute('open','');
+}
+export async function handleDetailBooking(form,refresh){const btn=form.querySelector('[type="submit"]');if(btn)btn.disabled=true;try{await bookStock(Object.fromEntries(new FormData(form).entries()));closeArticleDetail();await refresh();}catch(e){const out=document.getElementById('u07-detail-error');if(out){out.textContent=e.message||'Buchung fehlgeschlagen.';out.hidden=false;}}finally{if(btn)btn.disabled=false;}}
 function categoryManagerMarkup(){
  const parentChoices=(active,exclude)=>`<option value="">Oberste Ebene</option>`+knownCategories.filter(x=>x.id!==exclude).map(x=>`<option value="${safe(x.id)}" ${active===x.id?'selected':''}>${safe(categoryPath(x,knownCategories))}</option>`).join('');
  return `<div class="catalog-dialog-head"><span class="eyebrow">LAGERHAUS / KLASSIFIKATION</span><button class="modal-close" type="button" data-category-action="close" aria-label="Schließen">${icon('x',20)}</button></div>

@@ -167,3 +167,16 @@ export async function setArticleImage(id,blob){validImage(blob);const db=await o
   const media=tx.objectStore('media'),req=media.index('by_owner').getAll(['article',id]);req.onsuccess=()=>{for(const row of req.result)media.delete(row.id);insertImage(tx,id,blob,at);tx.objectStore('audit').add({id:uid(),type:blob?'article-photo-updated':'article-photo-removed',entityId:id,source:'manual',createdAt:at});done({hasPhoto:!!blob});};
  };
 });}
+
+/** U07: safe favorite toggle, leaving quantity, image and history untouched. */
+export async function setArticleFavorite(articleId, value){
+ if(typeof value!=='boolean')throw new StorageError('Favoritenstatus ungültig.','VALIDATION');
+ const db=await openDatabase(),at=now();
+ return txPromise(db,['articles','audit'],(tx,done,fail)=>{
+  const rows=tx.objectStore('articles'),request=rows.get(articleId);
+  request.onsuccess=()=>{const a=request.result;if(!a||a.archivedAt)return fail(new StorageError('Artikel nicht gefunden.','VALIDATION'));
+   const item={...a,favorite:value,updatedAt:at};rows.put(item);
+   tx.objectStore('audit').add({id:uid(),type:'article-favorite',entityId:articleId,source:'manual',createdAt:at,name:a.name});done(item);
+  };
+ });
+}
