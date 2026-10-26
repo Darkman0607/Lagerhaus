@@ -1,3 +1,4 @@
+import {bookingPanel} from './bookings.js';
 import {icon} from '../core/icons.js';
 import {escapeHtml as esc} from '../core/escape.js';
 import {repository} from '../data/store.js';
@@ -15,7 +16,7 @@ function hierarchy(p){const depth=p.path.split(' / ').length-1;return `<div clas
  ${p.items.length?`<div class="location-items">${p.items.map(s=>`<div class="location-item"><strong>${safe(s.name)}</strong><span>${fmt(s.quantity)} ${safe(s.unit)} ${s.favorite?'★':''}${s.lowStock?' ⚠':''}</span></div>`).join('')}</div>`:'<div class="location-empty">Noch kein Bestand zugeordnet.</div>'}
  <div class="location-actions"><a href="#/articles/location/${safe(p.id)}" class="secondary-btn location-link">Artikel ansehen</a><button type="button" data-location-action="edit" data-id="${safe(p.id)}">Umbenennen / ändern</button><button type="button" data-location-action="archive" data-id="${safe(p.id)}" class="location-danger">Archivieren</button></div></div>`;}
 function transferOptions(selected,all=false){return places.map(p=>`<option value="${safe(p.id)}" ${p.id===selected?'selected':''}>${safe(p.path)}</option>`).join('');}
-export async function warehouseView(){const [p,a,s,t]=await Promise.all([locationOverview(),repository.articles(),repository.stocks(),recentTransfers()]);places=p;items=a;stocks=s;history=t;
+export async function warehouseView(){const [p,a,s,t,stockMarkup]=await Promise.all([locationOverview(),repository.articles(),repository.stocks(),recentTransfers(),bookingPanel()]);places=p;items=a;stocks=s;history=t;
  return `<section class="page-heading"><div><p class="eyebrow">STRUKTUR / LAGERORTE</p><h1>Lager</h1><p>Standorte, Räume, Regale, Fächer und Boxen mit echten Ortsbeständen.</p></div><span class="chip">3D-Ansicht folgt in U09</span></section>
  <article class="panel location-panel"><div class="list-heading"><div>${icon('layers',18)} <strong>Ortsverwaltung</strong></div><span class="chip quiet">${places.length} aktive Orte</span></div>
  <p class="location-hint">Jeder Ort hat eine eindeutige ID. Du kannst ihn ohne Bestandsverlust umbenennen oder verschachteln. Mehrere Orte pro Artikel sind möglich.</p>
@@ -27,6 +28,7 @@ export async function warehouseView(){const [p,a,s,t]=await Promise.all([locatio
  <form id="location-transfer-form" class="location-transfer-form"><label>Artikel<select name="articleId" required><option value="">Artikel auswählen</option>${articleOptions()}</select></label><label>Von<select name="sourceLocationId" required><option value="">Quelle wählen</option>${transferOptions()}</select></label><label>Nach<select name="targetLocationId" required><option value="">Ziel wählen</option>${transferOptions()}</select></label><label>Menge<input type="number" name="quantity" required min="0.001" step="0.001" max="1000000000"></label><label class="wide">Notiz (optional)<input name="note" maxlength="500" placeholder="z. B. ins Kellerregal umgeräumt"></label><button type="submit" class="primary-btn">Umlagern</button></form><p id="location-transfer-error" class="location-error" hidden role="alert"></p>
  <h3 class="location-subtitle">Letzte Umlagerungen</h3><div class="location-history">${history.length?history.map(t=>{const item=items.find(a=>a.id===t.articleId);const source=places.find(p=>p.id===t.sourceLocationId),target=places.find(p=>p.id===t.targetLocationId);
  return `<div class="location-history-row"><div><strong>${safe(item?.name||'Artikel')}</strong><small>${safe(source?.path||'Alter Ort')} → ${safe(target?.path||'Alter Ort')} · ${fmt(t.quantity)} ${safe(item?.unit||'')} · ${safe(new Date(t.createdAt).toLocaleString('de-AT'))}</small>${t.note?`<small>${safe(t.note)}</small>`:''}</div>${t.undoneAt?'<span class="chip quiet">Rückgängig</span>':`<button type="button" data-location-action="undo" data-id="${safe(t.id)}">Rückgängig</button>`}</div>`;}).join(''):'<div class="location-empty">Noch keine Umlagerung durchgeführt.</div>'}</div></article>
+ ${stockMarkup}
  <dialog class="catalog-dialog" id="location-editor" aria-labelledby="location-editor-title"></dialog>
  <article class="panel warehouse-future"><div class="future-caption"><span class="chip success">Bereits geplant · U09</span><h2>Isometrische Lageransicht</h2><p>Die geplante 3D-Ansicht nutzt exakt diese Lagerorte und Ortsbestände. Sie zeigt keine erfundenen Regale oder Mengen.</p></div></article>`;
 }

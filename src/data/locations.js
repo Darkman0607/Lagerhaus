@@ -50,9 +50,9 @@ export async function archiveLocation(id){uuid(id);const db=await openDatabase()
  for(const [store,key] of [['locations','locations'],['stocks','stocks'],['articles','articles']]){const r=tx.objectStore(store).getAll();r.onsuccess=()=>{if(key==='locations')locations=r.result;else if(key==='stocks')stocks=r.result;else articles=r.result;ready();};}
  });}
 export async function locationOverview(){const db=await openDatabase();return new Promise((resolve,reject)=>{const tx=db.transaction(['locations','articles','stocks'],'readonly'),r={},names=['locations','articles','stocks'];let wait=3;tx.onerror=()=>reject(tx.error);for(const name of names){const req=tx.objectStore(name).getAll();req.onsuccess=()=>{r[name]=req.result;if(!--wait){const a=indexLocations(r.articles);const result=r.locations.filter(x=>!x.archivedAt).map(l=>{
- const stocks=r.stocks.filter(s=>s.locationId===l.id&&s.quantity>0&&a.has(s.articleId)&&!a.get(s.articleId).archivedAt);
- const items=stocks.map(s=>{const article=a.get(s.articleId);const allQty=r.stocks.filter(t=>t.articleId===article.id).reduce((n,t)=>n+t.quantity,0);return {id:article.id,name:article.name,quantity:s.quantity,unit:article.unit||'Stück',favorite:!!article.favorite,lowStock:article.minQuantity>0&&allQty<article.minQuantity,section:article.section};});
- return {...l,path:locationPath(l,r.locations),articleCount:items.length,favorites:items.filter(x=>x.favorite).length,warnings:items.filter(x=>x.lowStock).length,items};});resolve(result);}};}
+ const stocks=r.stocks.filter(s=>s.locationId===l.id&&(s.quantity>0||s.quantity===0)&&a.has(s.articleId)&&!a.get(s.articleId).archivedAt);
+ const items=stocks.map(s=>{const article=a.get(s.articleId);const allQty=r.stocks.filter(t=>t.articleId===article.id).reduce((n,t)=>n+t.quantity,0);return {id:article.id,name:article.name,quantity:s.quantity,unit:article.unit||'Stück',favorite:!!article.favorite,lowStock:s.quantity===0||(s.lowThreshold??article.minQuantity??0)>0&&s.quantity<=(s.lowThreshold??article.minQuantity??0),section:article.section};});
+ return {...l,path:locationPath(l,r.locations),articleCount:items.filter(x=>x.quantity>0).length,favorites:items.filter(x=>x.favorite).length,warnings:items.filter(x=>x.lowStock).length,items};});resolve(result);}};}
  });}
 export async function transferStock({articleId,sourceLocationId,targetLocationId,quantity,note=''}={}){
  uuid(articleId,'Artikel-ID');uuid(sourceLocationId,'Quellort-ID');uuid(targetLocationId,'Zielort-ID');

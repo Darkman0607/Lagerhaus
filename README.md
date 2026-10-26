@@ -1,42 +1,29 @@
-# Lagerhaus — V0.5.0 · Update U05
+# Lagerhaus — V0.6.0 · Update U06
 
-Offlinefähige, lokal speichernde Lagerverwaltung für **Privat und Arbeit** mit industriell-professioneller Oberfläche nach der festgelegten Designreferenz. Die interaktive isometrische **3D-Lageransicht** ist ausschließlich für den Bereich Lager/Lagerorte vorgesehen (geplant für U09).
+Offlinefähige lokale Lagerverwaltung als Android-/Desktop-PWA für private und berufliche Artikel. Die bisherige professionelle dunkle Industrieoberfläche bleibt erhalten; die interaktive 3D-Lageransicht ist erst für U09 vorgesehen.
 
-## Neu mit U05 · Lagerorte und Bestände je Ort
+## Neu in U06 · Fünf Funktionen
 
-1. Standort/Raum/Regal/Fach/Box als frei verschachtelbare Hierarchie. Kreis- und Duplikatsschutz.
-2. Ein Artikel an beliebig vielen Lagerorten mit getrennten Mengen; Gesamtsumme bleibt synchron.
-3. Orte anlegen, umbenennen, verschieben und geschützt archivieren. Keine automatische Löschung von Bestands- oder Buchungsdaten.
-4. Atomare Umlagerung (Quelle → Ziel) mit Protokoll, Notiz und geschütztem Rückgängig.
-5. Belegungsübersicht mit Artikeln, Favoriten und Unterbeständen; direkter Filter zur Artikelübersicht.
+1. **U06-F01 Ein-/Ausbuchungen:** Wareneingang, Entnahme und Verbrauch mit Artikel, konkretem Lagerort, positiver Menge, kompatibler Einheit und optionaler Notiz. Einheitentausch wie `0,5 l ↔ 500 ml` wird exakt umgerechnet; negative Ortsbestände sind untersagt. Eingabefeld für Dezimalwerte bitte mit der vom Browser akzeptierten Schreibweise benutzen.
+2. **U06-F02 Inventurkorrektur:** Tatsächlich gezählte **neue Gesamtmenge** am Ort und obligatorischer Grund. Alte Menge, neue Menge, Zeit, Quelle und Buchungs-ID werden in einer neuen Bewegung gespeichert. Es erfolgt keine stille Überschreibung.
+3. **U06-F03 Bestandsampel:** Grün ausreichend, Orange bei positivem Bestand bis einschließlich Mindestgrenze, Rot bei Nullbestand. Grenzwert kann pro Artikel und als spezifische Ausnahme am Lagerort gespeichert werden. Artikel ohne bisherige Bestandszeile zeigen am primären Lagerort Nullbestand rot.
+4. **U06-F04 Storno:** Kontrollierte Gegenbuchung mit `undoOf`-Verweis und Status am Original. Verhindert doppeltes Stornieren und einen negativen Zielbestand. Alte U01–U05-Buchungen bleiben sichtbar, werden aber nicht durch U06-Stornos freigegeben; Umlagerungen werden weiterhin im U05-Bereich rückgängig gemacht.
+5. **U06-F05 Gebindeaufteilung:** Für Verbrauchsmaterial und Lebensmittel können ganze geschlossene Gebinde und die Menge **eines** angebrochenen Gebindes am Ort erfasst werden. Voraussetzung: Packungsinhalt und Artikeleinheit sind kompatibel (z. B. 750 ml zu ml). `geschlossene × Packungsinhalt + offen` ergibt einen **einzigen** Ortsbestand, nicht zwei konkurrierende Mengenzähler. Geschätzte Füllstände sind klar markiert; nach normaler Buchung wird die Gebindeaufteilung als Schätzung weitergeführt. Unterschiedliche offene Packungen werden derzeit nicht einzeln verwaltet.
 
-**Wichtig:** Artikel mit Beständen an mehreren Orten können weiterhin in ihren Stammdaten bearbeitet werden. Die Mengenänderung im Artikel-Editor bleibt in diesem Fall gesperrt; sie ist über „Lager → Umlagern“ vorzunehmen. Die vollständige Ein-/Ausbuchung folgt in U06.
+### Bedienung
 
-## Bisherige Funktionen U04 · Kategorien und Privat/Arbeit
+In **Lager → Bestandsführung · Buchungen** sind die drei aufklappbaren Bereiche für Buchungen, Mindestmengen und Gebindebestand; darunter Ampel, Ortsbestände und Historie. Für bestehende Artikel dürfen **Mengen nicht im Artikel-Stammdatenformular** geändert werden; dafür die Buchungsmaske mit dem nachvollziehbaren Buchungsgrund verwenden. Die übrigen Artikelstammdaten sind weiterhin editierbar.
 
-1. **Drei Verwendungsbereiche:** Privat, Arbeit oder Gemeinsam. Die Artikelliste lässt sich nach Privat inkl. Gemeinsam, Arbeit inkl. Gemeinsam oder ausschließlich Gemeinsam filtern; gemeinsamer Bestand wird nicht dupliziert.
-2. **Kategorien & Unterkategorien:** Zehn Startkategorien aus dem privaten/beruflichen Alltag; eigene Kategorien im Artikeldialog unter „Kategorien verwalten“ anlegen, hierarchisch zuordnen, nach oben/unten sortieren oder umbenennen. Bezeichnungen müssen eindeutig sein; kreisförmige Unterkategorien sind gesperrt.
-3. **Artikeltypen:** Verbrauchsmaterial, wiederverwendbar, Gerät/Maschine und Lebensmittel/Getränk. Das MHD-Feld ist nur bei Lebensmittel/Getränk relevant; der Wartungsintervall nur bei Geräten/Maschinen. Das bestehende freie Artikelmerkmal „Typ“ bleibt als Text erhalten.
-4. **Schlagwörter und Merkmale:** Bis zu 12 Tags und 10 frei definierte Merkmale („Name: Wert“) pro Artikel. Namen, Kategorien, Tag-Inhalte und Merkmalswerte sind über die Artikel-Suchleiste auffindbar.
-5. **Migration und Datenintegrität:** Schema v2→v3 migriert vorhandene Kategorie-Namen in eindeutige Kategorie-IDs, ohne Bestände/Buchungen/Bilder zu löschen. Umbenennungen laufen atomar mit Änderung der sichtbaren Artikel-Kategorie; Stamm-IDs und Bestände bleiben identisch.
+### Verifikation
 
-## Vorhandene Funktionen U01–U03
+- `npm test` führt **sieben** Testsuiten U01–U06 durch, inklusive Fake-IndexedDB, Migration Schema 4 → 5, negativer Buchungen, 1× Storno, Grenzwerten, Einheitentransfer und Fotoerhalt.
+- Alle JavaScript-Module mit `node --check` kontrollieren.
+- Es gibt noch **keinen bestätigten realen Chromium-, Android-, GitHub-Pages- oder Offline-Neustart-Test**. Der lokale Chromium-Versuch wurde durch `net::ERR_BLOCKED_BY_ADMINISTRATOR` blockiert. Android-Touch, Installation und GitHub Pages müssen am Gerät abgenommen werden.
+- Die vollständige Backup-/Restore-Funktion folgt erst mit **U10**. Website-/Browserdaten **nicht löschen**: das könnte Bestände und Artikelbilder unwiederbringlich zerstören.
 
-- PWA-Grundgerüst, dunkles responsives Design, lokale IndexedDB, Manifest/Service Worker/Offline-Shell.
-- Schnellerfassung mit Artikelname, Kategorie, Lagerort, Menge, Privat/Arbeit/Gemeinsam; optionale Hersteller-/Marken-/Modell-/Seriennummernfelder.
-- Sichere Messumrechnung ml/l, g/kg; lokale Produktbilder; Bearbeiten, Kopieren, Archivieren mit Bewegungsprotokoll.
-- Automatische Tests für Datenspeicherung, Rollback, U03-Regressionen und Kategorien-Migration.
+### GitHub und Installation
 
-## Installation und Bedienung
+Repository: https://github.com/Darkman0607/Lagerhaus  
+Pages: https://darkman0607.github.io/Lagerhaus/ (nur wenn Pages in GitHub unter Settings → Pages → Deploy from branch → main / root aktiviert wurde). Chrome auf Android: Menü → „App installieren“ oder „Zum Startbildschirm hinzufügen“.
 
-Repository: https://github.com/Darkman0607/Lagerhaus
-
-GitHub Pages unter **Settings → Pages → Deploy from a branch → main / (root)** einstellen. Die PWA unter https://darkman0607.github.io/Lagerhaus/ in Android Chrome öffnen und über das Browsermenü „App installieren“ oder „Zum Startbildschirm hinzufügen“ auswählen. Installation und vollständiges Offline-Neustarten müssen **auf dem echten Android-Gerät** separat geprüft werden.
-
-Zum lokalen Testen `python -m http.server 8000` im App-Ordner starten und `http://localhost:8000` öffnen. `file://` unterstützt den Service Worker nicht. `npm test` führt sämtliche Node-/Fake-IndexedDB-Tests aus. Ein kontrollierter Chromium-End-to-End-Test war in der Entwicklungsumgebung aufgrund einer Administrator-Netzwerksperre nicht möglich; Android-Chrome- und GitHub-Pages-Livetest sind offen.
-
-## Sicherheits- und Funktionsgrenzen
-
-**Noch keine Backup-/Restore-Funktion vor U10.** Die Daten liegen ausschließlich im lokalen Browserprofil; das Löschen von Website-/Browserdaten kann alle Artikel und Fotos unwiederbringlich entfernen. Kein Konto, keine Cloud-Synchronisation. Vor der Nutzung mit wichtigen Echtbeständen muss die Datensicherung nachgerüstet und am Gerät abgenommen werden.
-
-Die 3D-Lageransicht folgt erst U09. U05 enthält Umlagerungen von Ort zu Ort, aber noch keine allgemeinen Ein-/Ausbuchungsmasken (U06). U07 ergänzt weitere Filter. Bestehende Mengen dürfen nicht still verändert werden. Die Kategorieverwaltung arbeitet deshalb nur auf Kategorie- und Artikelstammdaten, nicht auf Bewegungen oder Ortsbeständen.
+**U07 folgt:** Artikelübersicht, Suche, Filter und Sortierung. U09: 3D-Lageransicht. U10: erster stabiler Release mit überprüfter Backup- und Wiederherstellung.

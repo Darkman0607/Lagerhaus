@@ -3,7 +3,7 @@
  * No demo inventory, no network/database telemetry.
  */
 export const DATABASE_NAME = 'lagerhaus-local';
-export const DATABASE_VERSION = 4;
+export const DATABASE_VERSION = 5;
 export const STORE_NAMES = Object.freeze(['articles','locations','stocks','movements','media','purchases','audit','meta','categories']);
 const VALID_SOURCES = new Set(['manual','receipt','usage','correction','inventory','initial']);
 const MAX_QUANTITY = 1_000_000_000;
@@ -104,6 +104,11 @@ function migrate(db,tx,oldVersion){
     }};
     makeIndex(locations,'by_parent','parentId');
     makeIndex(makeStore(db,tx,'movements'),'by_transfer','transferId');
+  }
+  if(oldVersion<5){
+    // U06: additive indexes; booking references and per-place thresholds are optional fields.
+    makeIndex(makeStore(db,tx,'movements'),'by_undo','undoOf');
+    makeIndex(makeStore(db,tx,'movements'),'by_booking_type','bookType');
   }
 }
 let openPromise;

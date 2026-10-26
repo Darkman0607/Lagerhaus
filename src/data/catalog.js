@@ -120,17 +120,14 @@ export async function updateCatalogArticle(articleId,input){
     const stocks=tx.objectStore('stocks').index('by_article').getAll(articleId);
     stocks.onsuccess=()=>{
      const all=stocks.result,positive=all.filter(x=>x.quantity>0),previous=all.reduce((v,x)=>v+x.quantity,0);
+     if(all.some(x=>x.packageState)&&(original.packageSize!==f.packageSize||original.packageUnit!==f.packageUnit||original.unit!==f.unit))return fail(new StorageError('Packungsinhalt bei vorhandener Gebindeaufteilung nicht ändern. Bitte Gebindebestand zuerst neu inventarisieren.','VALIDATION'));
      if(original.unit!==f.unit&&previous>0)return fail(new StorageError('Einheit bei vorhandenem Bestand nicht ändern. Bitte Bestand zuerst auf 0 setzen.','VALIDATION'));
      if(previous>0&&locationId!==original.primaryLocationId)return fail(new StorageError('Lagerortwechsel bei vorhandenem Bestand nur über Lager → Umlagern.','VALIDATION'));
      const multiple=positive.some(x=>x.locationId!==locationId);
      if(multiple&&quantity!==previous)return fail(new StorageError('Bei Beständen an mehreren Orten ist die Gesamtmenge im Artikel-Editor gesperrt. Bitte Lager → Umlagern verwenden.','VALIDATION'));
      const current=all.find(x=>x.locationId===locationId);
      const delta=multiple?0:Math.round((quantity-(current?.quantity||0))*1000)/1000;
-     if(delta!==0){
-      tx.objectStore('stocks').put({id:current?.id||uid(),articleId,locationId,quantity,createdAt:current?.createdAt||at,updatedAt:at,schemaVersion:DATABASE_VERSION});
-      tx.objectStore('movements').add({id:uid(),articleId,locationId,delta,before:current?.quantity||0,after:quantity,source:'correction',note:'Korrektur im Artikel-Editor',createdAt:at,schemaVersion:DATABASE_VERSION});
-      tx.objectStore('audit').add({id:uid(),type:'stock-adjusted',entityId:articleId,source:'correction',createdAt:at,locationId,delta,before:current?.quantity||0,after:quantity});
-     }
+     if(delta!==0)return fail(new StorageError('Bestand nur über Lager → Bestandsführung ändern. Korrekturen erfordern einen dokumentierten Grund.','VALIDATION'));
      resolveCategory(tx,input,at,fail,(categoryId,categoryName)=>{
       const updated={...original,...f,categoryId,category:categoryName,primaryLocationId:locationId,updatedAt:at};articles.put(updated);
       tx.objectStore('audit').add({id:uid(),type:'article-updated',entityId:articleId,source:'manual',createdAt:at,name:f.name});done(updated);

@@ -27,7 +27,7 @@ const {repository,DATABASE_VERSION}=await import('../src/data/store.js');
 const {createCatalogArticle,updateCatalogArticle,articleImages}=await import('../src/data/catalog.js');
 const {createCategory,editCategory,reorderCategory,listCategories,categoryPath}=await import('../src/data/categories.js');
 const {articlesView,clearArticleMediaUrls}=await import('../src/views/articles.js');
-assert.equal(DATABASE_VERSION,4);
+assert.equal(DATABASE_VERSION,5);
 let cats=await listCategories();assert.ok(cats.length>=10);
 let migrated=(await repository.articles()).find(x=>x.name==='Alter WC-Reiniger');
 assert.equal(migrated.category,'Putzen');assert.equal(migrated.section,'gemeinsam');
