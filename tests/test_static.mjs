@@ -1,0 +1,30 @@
+import assert from 'node:assert/strict';
+import { readFileSync, existsSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { dashboardView } from '../src/views/dashboard.js';
+import { warehouseView } from '../src/views/warehouse.js';
+import { articlesView } from '../src/views/articles.js';
+import { shoppingView } from '../src/views/shopping.js';
+import { moreView } from '../src/views/more.js';
+import { routes } from '../src/core/router.js';
+const root=resolve(import.meta.dirname,'..');
+const view=await dashboardView();
+assert.equal((view.match(/class="metric-value">0/g)||[]).length,4,'exactly 4 genuine zero KPI');
+assert.ok(view.includes('Keine Aktivitäten vorhanden'));
+for(const [key,handler,expected] of [['warehouse',warehouseView,'Lager'],['articles',articlesView,'Artikel'],['shopping',shoppingView,'Einkauf'],['more',moreView,'Mehr']]){
+ assert.ok(routes[key]); assert.ok(handler().includes(`<h1>${expected}</h1>`));
+}
+for(const key of ['dashboard','warehouse','articles','shopping','more'])assert.ok(routes[key]);
+for(const [path] of [['index.html'],['assets/styles.css'],['sw.js'],['src/main.js'],['manifest.webmanifest']])assert.ok(existsSync(resolve(root,path)),path);
+const manifest=JSON.parse(readFileSync(resolve(root,'manifest.webmanifest'),'utf8'));
+assert.equal(manifest.start_url,'./'); assert.equal(manifest.scope,'./');assert.equal(manifest.display,'standalone');
+for(const icon of manifest.icons)assert.ok(existsSync(resolve(root,icon.src)));
+const sw=readFileSync(resolve(root,'sw.js'),'utf8');
+const shell=[...sw.matchAll(/'\.\/[^']+'/g)].map(x=>x[0].slice(1,-1));
+for(const ref of shell)assert.ok(existsSync(resolve(root,ref)),`missing offline pre-cache: ${ref}`);
+const css=readFileSync(resolve(root,'assets/styles.css'),'utf8');
+assert.ok(css.includes('@media(max-width:700px)'));
+assert.ok(css.includes('.bottom-nav'));
+assert.ok(css.includes('.sidebar'));
+assert.ok(!view.includes('482'));
+console.log('PASS static: 5 navigation routes, dashboard zeros, responsive styles, PWA manifest and offline asset inventory');
