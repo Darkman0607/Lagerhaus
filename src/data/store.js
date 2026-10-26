@@ -166,7 +166,7 @@ export class WarehouseRepository {
           articles:active.length,
           lowStock:trackable.filter(a=>(totals.get(a.id)||0)>0&&(totals.get(a.id)||0)<a.minQuantity).length,
           outOfStock:trackable.filter(a=>(totals.get(a.id)||0)===0).length,
-          openPurchases:purchases.filter(p=>p.status!=='done').length
+          openPurchases:purchases.filter(p=>p.status==='open').length
         });
       };
       const a=tx.objectStore('articles').getAll();a.onsuccess=()=>{articles=a.result;finish();};

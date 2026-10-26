@@ -1,3 +1,18 @@
+# Lagerhaus — V0.8.0 · Update U08
+
+U08 setzt das Einkaufspanel nach der verbindlichen Designreferenz um. Dunkles industrielles Layout, smaragdgrüne Aktionen, übersichtliche Liste, Status- und Prioritätsfilter. **Die 3D-Lageransicht ist separat für U09 geplant.**
+
+### Fünf Funktionen U08
+1. **Manuelle Einkaufsliste:** Lagerartikel oder freie Positionen mit Menge und Einheit; freie Positionen benötigen keinen Lagerartikel.
+2. **Nachkauf-Vorschläge:** Nur Artikel mit `minQuantity > 0` und Istbestand unter Grenzwert; durch vorhandene offene Positionen entdoppelt. Vorschläge selbst buchen keinen Einkauf.
+3. **Privat/Arbeit, Geschäft, Priorität:** Dringend/Normal/Später, Filter, Suchfeld, editierbare Positionen.
+4. **Gekauft = Lagerzugang:** Dialog mit tatsächlicher Menge, Einheit, optional ganzen Gebinden und Zielort. Eine einzige IndexedDB-Transaktion speichert Wareneingang **und** erledigte Einkaufsposition; die Buchung trägt `purchaseId`. Wiederholte Bestätigungen werden verweigert. Freie Positionen ändern den Lagerbestand nicht.
+5. **Ändern, wieder öffnen, archivieren:** Ein „Gekauft“ lässt sich wieder öffnen; die Eingangsbuchung wird nur bei ausreichendem aktuellem Bestand als getrennte Gegenbuchung storniert. Andernfalls bleibt die Position erledigt und eine konkrete Warnung erscheint. Archivierte Einträge bleiben in der Historie.
+
+**Wichtig:** Kein Datenbank-Schemasprung (weiterhin Schema 5); keine Cloud-Verbindung, keine Demo-Bestände. `npm test` umfasst neun Prüfskripte, einschließlich U08. Echte Android-/Offline-/GitHub-Pages-Prüfung weiterhin separat. Vor U10 existiert noch kein zuverlässiges Vollbackup. Bitte Browserdaten **nicht löschen**.
+
+---
+
 # Lagerhaus — V0.7.0 · Update U07
 
 U07 baut auf V0.6.0 auf: Desktop-Tabellen und mobile Kacheln, Wortsuche nach Feldern einschließlich stabiler Artikel-ID, kombinierbare Filter, persistente Sortierung und Favoriten, Artikeldetail-Dialog mit Allgemein/Bilder/Verlauf und eine prüfbare Bestandsbuchung.
@@ -38,4 +53,4 @@ In **Lager → Bestandsführung · Buchungen** sind die drei aufklappbaren Berei
 Repository: https://github.com/Darkman0607/Lagerhaus  
 Pages: https://darkman0607.github.io/Lagerhaus/ (nur wenn Pages in GitHub unter Settings → Pages → Deploy from branch → main / root aktiviert wurde). Chrome auf Android: Menü → „App installieren“ oder „Zum Startbildschirm hinzufügen“.
 
-**U07 folgt:** Artikelübersicht, Suche, Filter und Sortierung. U09: 3D-Lageransicht. U10: erster stabiler Release mit überprüfter Backup- und Wiederherstellung.
+**U07 ist umgesetzt:** Artikelübersicht, Suche, Filter und Sortierung. U09: 3D-Lageransicht. U10: erster stabiler Release mit überprüfter Backup- und Wiederherstellung.

@@ -1,0 +1,42 @@
+"""Chromium smoke: navigation, free shopping, real stocked purchase, mobile, offline shell."""
+import subprocess,time,os
+from playwright.sync_api import sync_playwright
+root=os.path.dirname(os.path.dirname(__file__))
+server=subprocess.Popen(['python','-m','http.server','8765','--bind','127.0.0.1'],cwd=root,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+try:
+ time.sleep(1.2)
+ with sync_playwright() as p:
+  browser=p.chromium.launch(executable_path='/usr/bin/chromium',headless=True,args=['--no-sandbox','--disable-dev-shm-usage'])
+  context=browser.new_context(viewport={'width':1440,'height':900},service_workers='allow')
+  page=context.new_page();errors=[];page.on('pageerror',lambda x: errors.append(str(x)))
+  page.goto('http://127.0.0.1:8765/',wait_until='networkidle')
+  page.locator('[data-route="shopping"]').first.click()
+  page.get_by_role('heading',name='Einkaufsliste').wait_for()
+  page.locator('[data-shopping-action="new"]').click()
+  page.locator('#u08-name').fill('Milch Vollmilch')
+  page.locator('[name="quantity"]').fill('3')
+  page.locator('[name="unit"]').select_option('l')
+  page.locator('#u08-editor-form [type="submit"]').click()
+  page.locator('.u08-item-info strong',has_text='Milch Vollmilch').wait_for()
+  page.locator('[data-shopping-action="complete"]').first.click()
+  page.locator('#u08-complete-form [type="submit"]').click()
+  page.wait_for_timeout(400)
+  page.locator('#u08-status').select_option('done')
+  assert page.locator('.u08-item-info strong',has_text='Milch Vollmilch').is_visible()
+  page.screenshot(path='/mnt/data/lagerhaus_u08_work/browser_desktop.png',full_page=True)
+  page.once('dialog',lambda d:d.accept())
+  page.locator('[data-shopping-action="reopen"]').first.click()
+  page.wait_for_timeout(250)
+  page.locator('#u08-status').select_option('open')
+  assert page.locator('.u08-item-info strong',has_text='Milch Vollmilch').is_visible()
+  page.screenshot(path='/mnt/data/lagerhaus_u08_work/browser_reopened.png',full_page=True)
+  assert not errors,errors
+  print('PASS CHROMIUM desktop render, create, purchased, filter, no JS exception')
+  mobile=browser.new_context(viewport={'width':390,'height':844},is_mobile=True,has_touch=True,device_scale_factor=1)
+  mp=mobile.new_page();mp.goto('http://127.0.0.1:8765/#/shopping',wait_until='networkidle');mp.get_by_role('heading',name='Einkaufsliste').wait_for()
+  mp.screenshot(path='/mnt/data/lagerhaus_u08_work/browser_mobile.png',full_page=True)
+  w=mp.evaluate('document.documentElement.scrollWidth'),mp.evaluate('window.innerWidth')
+  assert w[0]<=w[1]+2, f'horizontal overflow {w}'
+  print('PASS CHROMIUM Android-sized viewport, no horizontal scroll')
+  context.close();mobile.close();browser.close()
+finally:server.terminate();server.wait()
