@@ -1,0 +1,35 @@
+import assert from 'node:assert/strict';
+import {installFakeIndexedDB,resetFakeDatabases} from './fake-indexeddb.mjs';
+installFakeIndexedDB();resetFakeDatabases();
+// Simulate a v1 record as an upgrade fixture. Browser migration must preserve it.
+await new Promise((resolve,reject)=>{const req=indexedDB.open('lagerhaus-local',1);req.onupgradeneeded=()=>{
+ const store=req.result.createObjectStore('articles',{keyPath:'id'});
+ store.add({id:'11111111-1111-4111-8111-111111111111',name:'Altartikel',createdAt:'2026-01-01T00:00:00.000Z'});
+};req.onsuccess=resolve;req.onerror=reject;});
+const {repository,StorageError}=await import('../src/data/store.js?boot');
+assert.equal((await repository.health()).version,2);
+assert.equal((await repository.articles())[0].name,'Altartikel','v1 data survived v2 migration');
+const a=await repository.addArticle({name:'Doppelt',minQuantity:3});
+const b=await repository.addArticle({name:'Doppelt',minQuantity:3});
+assert.notEqual(a.id,b.id,'same name distinct UUID');
+assert.equal((await repository.articles()).length,3);
+const loc=await repository.addLocation({name:'Garage'});
+const movement=await repository.applyMovement({articleId:a.id,locationId:loc.id,delta:5,source:'initial'});
+assert.equal(movement.before,0);assert.equal(movement.after,5);
+assert.equal((await repository.summary()).articles,3);
+assert.equal((await repository.summary()).outOfStock,1,'unstocked second article under minimum');
+assert.equal((await repository.movements(a.id)).length,1);
+await assert.rejects(()=>repository.applyMovement({articleId:a.id,locationId:loc.id,delta:-6}),{code:'TRANSACTION'});
+assert.equal((await repository.stocks()).find(x=>x.articleId===a.id).quantity,5,'abort preserved balance');
+assert.equal((await repository.movements(a.id)).length,1,'abort preserved movement log');
+await assert.rejects(()=>repository.applyMovement({articleId:a.id,locationId:'22222222-2222-4222-8222-222222222222',delta:2}),{code:'TRANSACTION'});
+assert.equal((await repository.movements(a.id)).length,1,'missing location cannot write a partial movement');
+await assert.rejects(()=>repository.applyMovement({articleId:a.id,locationId:loc.id,delta:NaN}),{code:'VALIDATION'});
+await assert.rejects(()=>repository.addArticle({name:'    '}),{code:'VALIDATION'});
+const history=await repository.recentActivity(10);
+assert.ok(history.some(x=>x.type==='stock-adjusted'&&x.source==='initial'));
+await repository.checkWriteAccess();
+const {repository:reopened}=await import('../src/data/store.js?reload');
+assert.equal((await reopened.articles()).length,3,'persisted across reopened repository connection');
+assert.equal((await reopened.stocks()).find(x=>x.articleId===a.id).quantity,5);
+console.log('PASS: v1→v2 migration, UUID uniqueness, persistence, atomic rollback, audit, diagnostic');

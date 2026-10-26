@@ -1,4 +1,4 @@
-# Lagerhaus – V0.1.0 (Update U01)
+# Lagerhaus – V0.2.0 (Update U02)
 
 Professionelles Grundgerüst einer **privaten und beruflichen Lagerverwaltungs-PWA**. Design nach der verbindlichen, im Masterplan eingebetteten Industrie-Referenz; **räumliches 3D ausschließlich im späteren Modul Lagerorte**.
 
@@ -33,3 +33,14 @@ Lokal: Statischen Webserver im App-Verzeichnis starten, z. B. `python -m http.se
 ## Testnotizen
 
 In `tests/` dokumentierte automatische Tests prüfen Navigation, Nullwerte, Mobile/Desktop und Offline-Verhalten. Echtes Android-Chrome und ein Live-GitHub-Pages-Deployment sind getrennt zu prüfen; lokale Browsertests ersetzen diese nicht.
+
+
+## Update U02 – lokale Datenbank / Zuverlässigkeit
+
+- IndexedDB `lagerhaus-local`, Schema 2, acht getrennte Datenspeicher (`articles`, `locations`, `stocks`, `movements`, `media`, `purchases`, `audit`, `meta`).
+- Datenbanköffnung und additive Migrationslogik. Kein automatisches Löschen vorhandener Datensätze bei Schemawechseln.
+- Sichere UUIDs via `crypto.randomUUID()` (HTTPS/localhost erforderlich), Erstellungs-/Änderungszeitstempel, fortlaufende Änderungs- und Buchungshistorie.
+- Bestandsänderungen atomar innerhalb **einer** nativen IndexedDB-Transaktion; negativer Bestand und ungültige Beträge werden abgebrochen. Es existiert noch **keine reguläre UI zur Artikelerfassung** – diese folgt in U03.
+- Unter **Mehr → Speicherdiagnose** kann eine Schreib-/Lese-/Löschprüfung ohne Veränderung des Inventars ausgeführt werden. Der Status bzw. Fehler beim Zugriff erscheint sichtbar in der Oberfläche.
+- Daten bleiben lokal im Browserprofil; Browserdaten löschen oder Website zurücksetzen kann Daten zerstören. Offline-App-Shell heißt **nicht**, dass Android garantierte dauerhafte Datenspeicherung erlaubt. Export-/Restore und vollständiges Backup sind erst für U10 (V1.0) geplant.
+- `npm test` führt statische Regressionen und U02-Code-/Schreibgrenzen-Prüfungen aus. Für vollständige Abnahme außerdem Browser-/Android-/Offline- und echte Migrationstests durchführen.
