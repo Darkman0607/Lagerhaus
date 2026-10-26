@@ -3,8 +3,8 @@
  * No demo inventory, no network/database telemetry.
  */
 export const DATABASE_NAME = 'lagerhaus-local';
-export const DATABASE_VERSION = 2;
-export const STORE_NAMES = Object.freeze(['articles','locations','stocks','movements','media','purchases','audit','meta']);
+export const DATABASE_VERSION = 3;
+export const STORE_NAMES = Object.freeze(['articles','locations','stocks','movements','media','purchases','audit','meta','categories']);
 const VALID_SOURCES = new Set(['manual','receipt','usage','correction','inventory','initial']);
 const MAX_QUANTITY = 1_000_000_000;
 
@@ -67,6 +67,33 @@ function migrate(db,tx,oldVersion){
     makeIndex(makeStore(db,tx,'movements'),'by_created','createdAt');
     makeIndex(makeStore(db,tx,'media'),'by_owner',['ownerType','ownerId']);
     makeIndex(makeStore(db,tx,'audit'),'by_created','createdAt');
+  }
+  if(oldVersion<3){
+    const cats=makeStore(db,tx,'categories');
+    makeIndex(cats,'by_parent','parentId');
+    // Every legacy article keeps its original identity, stock, images and movements.
+    // Categories are added inside the versionchange transaction, so failure rolls back.
+    const presets=['Haushalt','Putzen','Lebensmittel','Getränke','Garten','Werkzeug','Maschinen','Elektronik','Ersatzteile','Sonstiges'];
+    const mapping=new Map();let seq=0;
+    const add=name=>{
+      const key=name.toLocaleLowerCase('de');if(mapping.has(key))return mapping.get(key);
+      const id=makeId(),at=iso();cats.add({id,name,parentId:null,position:seq++,createdAt:at,updatedAt:at,schemaVersion:3,template:presets.some(x=>x===name)});
+      mapping.set(key,id);return id;
+    };
+    presets.forEach(add);
+    const articles=tx.objectStore('articles');
+    articles.getAll().onsuccess=event=>{
+      for(const item of event.target.result){
+        const name=typeof item.category==='string'&&item.category.trim()?item.category.trim():'Sonstiges';
+        item.categoryId=add(name);
+        if(!item.category)item.category=name;
+        if(!['privat','arbeit','gemeinsam'].includes(item.section))item.section='privat';
+        if(!['consumable','reusable','device','food'].includes(item.articleKind))item.articleKind='reusable';
+        item.tags=Array.isArray(item.tags)?item.tags:[];
+        item.attributes=item.attributes&&typeof item.attributes==='object'?item.attributes:{};
+        articles.put(item);
+      }
+    };
   }
 }
 let openPromise;

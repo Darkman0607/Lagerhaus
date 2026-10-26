@@ -1,5 +1,6 @@
-/** Lagerhaus U03 — article catalog operations, all records stay in local IndexedDB. */
+/** Lagerhaus U04 — article catalog operations, all records stay in local IndexedDB. */
 import { openDatabase, StorageError, validateQuantity, DATABASE_VERSION } from './store.js';
+import { ARTICLE_KINDS, checkedCategoryName } from './categories.js';
 export const UNITS=['Stück','Paar','Packung','ml','l','g','kg','m'];
 const SCALE={ml:['volume',1],l:['volume',1000],g:['mass',1],kg:['mass',1000],m:['length',1],Stück:['pieces',1],Paar:['pairs',1],Packung:['packs',1]};
 const MAX=1_000_000_000;
@@ -18,17 +19,39 @@ const text=(v,label,max=150,required=false)=>{
  const out=v.trim();if(out.length>max||required&&!out)throw new StorageError(`${label}: ${required?'Angabe erforderlich; ':''}maximal ${max} Zeichen.`,'VALIDATION');return out;
 };
 function fields(input){
- const name=text(input?.name,'Artikelname',160,true),category=text(input?.category,'Kategorie',70,true);
+ const name=text(input?.name,'Artikelname',160,true),category=checkedCategoryName(input?.category);
  const section=input?.section||'privat';if(!['privat','arbeit','gemeinsam'].includes(section))throw new StorageError('Ungültiger Bereich.','VALIDATION');
  const unit=input?.unit||'Stück';if(!UNITS.includes(unit))throw new StorageError('Ungültige Einheit.','VALIDATION');
  const quantity=validateQuantity(input?.quantity??0);if(quantity<0)throw new StorageError('Der Anfangsbestand darf nicht negativ sein.','VALIDATION');
  const packageSize=input?.packageSize===''||input?.packageSize==null?null:validateQuantity(Number(input.packageSize));
  const packageUnit=input?.packageUnit||'';
  if(packageSize!==null&&(packageSize<=0||!UNITS.includes(packageUnit)))throw new StorageError('Packungsinhalt benötigt einen positiven Wert und eine gültige Einheit.','VALIDATION');
+ const articleKind=input?.articleKind||'reusable';
+ if(!ARTICLE_KINDS.some(([v])=>v===articleKind))throw new StorageError('Ungültiger Artikeltyp.','VALIDATION');
+ const tagParts=Array.isArray(input?.tags)?input.tags:typeof input?.tags==='string'?input.tags.split(','):[];
+ const tags=[...new Map(tagParts.map(t=>{const v=text(t,'Tag',35,true);return [v.toLocaleLowerCase('de'),v];})).values()];
+ if(tags.length>12)throw new StorageError('Maximal zwölf Tags je Artikel.','VALIDATION');
+ let attributes={};
+ if(typeof input?.attributesText==='string'){
+  for(const line of input.attributesText.split(/\r?\n/).filter(x=>x.trim())){
+   const i=line.indexOf(':');if(i<=0)throw new StorageError('Merkmal bitte als „Name: Wert“ eingeben.','VALIDATION');
+   const key=text(line.slice(0,i),'Merkmalsname',40,true),value=text(line.slice(i+1),'Merkmalswert',100,true);
+   if(Object.keys(attributes).some(x=>x.toLocaleLowerCase('de')===key.toLocaleLowerCase('de')))throw new StorageError('Ein Merkmal darf nicht doppelt vorkommen.','VALIDATION');
+   attributes[key]=value;
+  }
+ }else if(input?.attributes&&typeof input.attributes==='object'&&!Array.isArray(input.attributes)){
+  for(const [key,value] of Object.entries(input.attributes))attributes[text(key,'Merkmalsname',40,true)]=text(value,'Merkmalswert',100,true);
+ }
+ if(Object.keys(attributes).length>10)throw new StorageError('Maximal zehn Merkmale je Artikel.','VALIDATION');
+ const bestBefore=articleKind==='food'?text(input?.bestBefore,'Mindesthaltbarkeit',10):'';
+ if(bestBefore&&!/^\d{4}-\d{2}-\d{2}$/.test(bestBefore))throw new StorageError('MHD bitte als Datum eingeben.','VALIDATION');
+ if(bestBefore&&(!Number.isFinite(Date.parse(bestBefore))||new Date(bestBefore).toISOString().slice(0,10)!==bestBefore))throw new StorageError('Ungültiges MHD.','VALIDATION');
+ const maintenanceIntervalDays=articleKind==='device'&&input?.maintenanceIntervalDays!==''&&input?.maintenanceIntervalDays!=null?Number(input.maintenanceIntervalDays):null;
+ if(maintenanceIntervalDays!==null&&(!Number.isSafeInteger(maintenanceIntervalDays)||maintenanceIntervalDays<1||maintenanceIntervalDays>36500))throw new StorageError('Wartungsintervall: 1 bis 36500 Tage.','VALIDATION');
  const optional={brand:70,model:80,type:80,manufacturer:100,serialNumber:100,notes:1000,color:60,condition:60};
- const f={name,category,section,unit,packageSize,packageUnit,favorite:input?.favorite===true};
+ const f={name,category,section,unit,packageSize,packageUnit,favorite:input?.favorite===true,articleKind,tags,attributes,bestBefore,maintenanceIntervalDays};
  for(const [k,max] of Object.entries(optional))f[k]=text(input?.[k],k,max);
- return {fields:f,quantity};
+ return {fields:f,quantity,categoryId:input?.categoryId||null};
 }
 function txPromise(db,names,handler){
  return new Promise((resolve,reject)=>{
@@ -52,6 +75,20 @@ const checkLocation=(tx,input,at,fail,then)=>{
   tx.objectStore('audit').add({id:uid(),type:'location-created',entityId:row.id,source:'manual',createdAt:at,name});then(row.id,name);
  };
 };
+function resolveCategory(tx,input,at,fail,then){
+ const cats=tx.objectStore('categories');cats.getAll().onsuccess=e=>{
+  const rows=e.target.result;
+  let match=input?.categoryId?rows.find(x=>x.id===input.categoryId):rows.find(x=>x.name.toLocaleLowerCase('de')===input.category.trim().toLocaleLowerCase('de'));
+  if(!match&&input?.categoryId)return fail(new StorageError('Ausgewählte Kategorie existiert nicht mehr.','VALIDATION'));
+  if(!match){
+   const id=uid(),name=checkedCategoryName(input.category);
+   match={id,name,parentId:null,position:rows.length,createdAt:at,updatedAt:at,schemaVersion:DATABASE_VERSION};
+   cats.add(match);
+   tx.objectStore('audit').add({id:uid(),type:'category-created',entityId:id,source:'manual',createdAt:at,name});
+  }
+  then(match.id,match.name);
+ };
+}
 const addStock=(tx,articleId,locationId,quantity,at,source)=>{
  if(quantity<=0)return;
  const stock={id:uid(),articleId,locationId,quantity,createdAt:at,updatedAt:at,schemaVersion:DATABASE_VERSION};tx.objectStore('stocks').add(stock);
@@ -62,18 +99,20 @@ function validImage(blob){if(blob==null)return;if(!(blob instanceof Blob)||!['im
 function insertImage(tx,id,image,at){if(!image)return;const row={id:uid(),ownerType:'article',ownerId:id,name:'Artikelfoto',blob:image,createdAt:at,updatedAt:at};tx.objectStore('media').add(row);}
 export async function createCatalogArticle(input){
  const {fields:f,quantity}=fields(input);validImage(input?.image);const at=now(),db=await openDatabase();
- const id=uid();return txPromise(db,['articles','locations','stocks','movements','audit','media'],(tx,done,fail)=>{
+ const id=uid();return txPromise(db,['articles','categories','locations','stocks','movements','audit','media'],(tx,done,fail)=>{
   checkLocation(tx,input,at,fail,(locationId,locationName)=>{
-   const row={id,...f,primaryLocationId:locationId,createdAt:at,updatedAt:at,schemaVersion:DATABASE_VERSION};
-   tx.objectStore('articles').add(row);addStock(tx,id,locationId,quantity,at,'initial');insertImage(tx,id,input?.image,at);
-   tx.objectStore('audit').add({id:uid(),type:'article-created',entityId:id,source:'manual',createdAt:at,name:f.name});
-   done({...row,quantity,locationName});
+   resolveCategory(tx,input,at,fail,(categoryId,categoryName)=>{
+    const row={id,...f,categoryId,category:categoryName,primaryLocationId:locationId,createdAt:at,updatedAt:at,schemaVersion:DATABASE_VERSION};
+    tx.objectStore('articles').add(row);addStock(tx,id,locationId,quantity,at,'initial');insertImage(tx,id,input?.image,at);
+    tx.objectStore('audit').add({id:uid(),type:'article-created',entityId:id,source:'manual',createdAt:at,name:f.name});
+    done({...row,quantity,locationName});
+   });
   });
  });
 }
 export async function updateCatalogArticle(articleId,input){
  const {fields:f,quantity}=fields(input);const at=now(),db=await openDatabase();
- return txPromise(db,['articles','locations','stocks','movements','audit'],(tx,done,fail)=>{
+ return txPromise(db,['articles','categories','locations','stocks','movements','audit'],(tx,done,fail)=>{
   const articles=tx.objectStore('articles'),request=articles.get(articleId);
   request.onsuccess=()=>{
    const original=request.result;if(!original||original.archivedAt)return fail(new StorageError('Artikel nicht gefunden oder archiviert.','VALIDATION'));
@@ -92,8 +131,10 @@ export async function updateCatalogArticle(articleId,input){
       tx.objectStore('movements').add({id:uid(),articleId,locationId,delta,before:current?.quantity||0,after:quantity,source:'correction',note:'Korrektur im Artikel-Editor',createdAt:at,schemaVersion:DATABASE_VERSION});
       tx.objectStore('audit').add({id:uid(),type:'stock-adjusted',entityId:articleId,source:'correction',createdAt:at,locationId,delta,before:current?.quantity||0,after:quantity});
      }
-     const updated={...original,...f,primaryLocationId:locationId,updatedAt:at};articles.put(updated);
-     tx.objectStore('audit').add({id:uid(),type:'article-updated',entityId:articleId,source:'manual',createdAt:at,name:f.name});done(updated);
+     resolveCategory(tx,input,at,fail,(categoryId,categoryName)=>{
+      const updated={...original,...f,categoryId,category:categoryName,primaryLocationId:locationId,updatedAt:at};articles.put(updated);
+      tx.objectStore('audit').add({id:uid(),type:'article-updated',entityId:articleId,source:'manual',createdAt:at,name:f.name});done(updated);
+     });
     };
    });
   };

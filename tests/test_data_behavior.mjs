@@ -7,7 +7,7 @@ await new Promise((resolve,reject)=>{const req=indexedDB.open('lagerhaus-local',
  store.add({id:'11111111-1111-4111-8111-111111111111',name:'Altartikel',createdAt:'2026-01-01T00:00:00.000Z'});
 };req.onsuccess=resolve;req.onerror=reject;});
 const {repository,StorageError}=await import('../src/data/store.js?boot');
-assert.equal((await repository.health()).version,2);
+assert.equal((await repository.health()).version,3);
 assert.equal((await repository.articles())[0].name,'Altartikel','v1 data survived v2 migration');
 const a=await repository.addArticle({name:'Doppelt',minQuantity:3});
 const b=await repository.addArticle({name:'Doppelt',minQuantity:3});
@@ -32,4 +32,4 @@ await repository.checkWriteAccess();
 const {repository:reopened}=await import('../src/data/store.js?reload');
 assert.equal((await reopened.articles()).length,3,'persisted across reopened repository connection');
 assert.equal((await reopened.stocks()).find(x=>x.articleId===a.id).quantity,5);
-console.log('PASS: v1→v2 migration, UUID uniqueness, persistence, atomic rollback, audit, diagnostic');
+console.log('PASS: v1→v3 migration, UUID uniqueness, persistence, atomic rollback, audit, diagnostic');
