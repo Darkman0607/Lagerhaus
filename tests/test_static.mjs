@@ -22,5 +22,5 @@ assert.throws(()=>validateQuantity(-1e12),{code:'VALIDATION'});
 assert.equal(escapeHtml('<script>'), '&lt;script&gt;');
 assert.equal(friendlyStorageError({name:'QuotaExceededError'}).code,'QUOTA');
 const css=readFileSync(resolve(root,'assets/styles.css'),'utf8');assert.ok(css.includes('@media(max-width:700px)'));assert.ok(css.includes('.bottom-nav'));
-const versions=JSON.parse(readFileSync(resolve(root,'version.json'),'utf8'));assert.equal(versions.version,'0.9.0');
+const versions=JSON.parse(readFileSync(resolve(root,'version.json'),'utf8'));assert.equal(versions.version,'1.0.0-rc.1');
 console.log('PASS: routes, safe HTML, validation, migration schema, PWA shell inventory, version');

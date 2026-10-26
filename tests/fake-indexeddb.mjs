@@ -13,6 +13,7 @@ class FakeStore {
  get(key){return this.tx.queue(()=>{const value=this.state.data.get(key);return value===undefined?undefined:cloneRow(value);});}
  getAll(){return this.tx.queue(()=>[...this.state.data.values()].map(cloneRow));}
  delete(key){return this.tx.queue(()=>this.state.data.delete(key));}
+ clear(){return this.tx.queue(()=>this.state.data.clear());}
 }
 class FakeIndex{
  constructor(tx,store,name){this.tx=tx;this.store=store;this.name=name;}

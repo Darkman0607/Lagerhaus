@@ -5,8 +5,9 @@ import {listCategories,createCategory,editCategory,reorderCategory,categoryPath,
 import {locationPath} from '../data/locations.js';
 import {articleContext, filterAndSort, normalizePreferences} from '../data/article-query.js';
 import {bookStock} from '../data/bookings.js';
+import {readSetup} from '../data/setup.js';
 import {UNITS,convertQuantity,createCatalogArticle,updateCatalogArticle,duplicateCatalogArticle,deleteCatalogArticle,restoreArchivedArticle,articleImages,setArticleImage,setArticleFavorite} from '../data/catalog.js';
-let knownArticles=[],knownLocations=[],knownStocks=[],knownPhotos=[],knownCategories=[],urls=[];
+let knownArticles=[],knownLocations=[],knownStocks=[],knownPhotos=[],knownCategories=[],urls=[],preferredSection='privat';
 const safe=v=>esc(v??'');
 const options=(values,selected)=>values.map(v=>`<option value="${safe(v)}" ${v===selected?'selected':''}>${safe(v)}</option>`).join('');
 const displaySection={privat:'Privat',arbeit:'Arbeit',gemeinsam:'Gemeinsam'};
@@ -34,6 +35,7 @@ function select(label,key,items){return `<label class="u07-field">${label}<selec
 export async function articlesView(){
  const [a,l,s,c]=await Promise.all([repository.articles(),repository.locations(),repository.stocks(),listCategories()]);
  knownArticles=a;knownLocations=l;knownStocks=s;knownCategories=c;
+ try{preferredSection=(await readSetup()).section||'privat';}catch{preferredSection='privat';}
  try{knownPhotos=await articleImages(a.map(x=>x.id));}catch{knownPhotos=[];}
  const live=a.filter(x=>!x.archivedAt),arch=a.filter(x=>x.archivedAt);
  contexts=live.map(x=>articleContext(x,s,l,c));
@@ -63,7 +65,7 @@ export async function articlesView(){
  ${!live.length?`<div class="large-empty">${icon('box',34)}<h2>Dein Lager ist noch leer</h2><p>Lege den ersten Artikel an.</p><button class="primary-btn" type="button" data-catalog="new">Ersten Artikel anlegen</button></div>`:''}
  </article>
  ${arch.length?`<details class="panel catalog-archived"><summary>Archivierte Artikel (${arch.length})</summary>${archive}</details>`:''}
- <p class="catalog-data-note">Achtung: Ohne vollständiges Backup bleiben Artikel und Fotos ausschließlich in diesem Browserprofil gespeichert. Browserdaten nicht löschen.</p>
+ <p class="catalog-data-note">Daten werden auf diesem Gerät gespeichert. Exportiere regelmäßig eine vollständige Sicherung unter Mehr → Datensicherung. Browserdaten nicht ohne Sicherung löschen.</p>
  <dialog id="catalog-dialog" class="catalog-dialog" aria-labelledby="catalog-dialog-title"></dialog><dialog id="categories-dialog" class="catalog-dialog" aria-labelledby="categories-dialog-title"></dialog><dialog id="catalog-details" class="catalog-dialog u07-detail-dialog" aria-labelledby="u07-detail-title"></dialog>`;
 }
 function updateCatalogRows(){
@@ -86,7 +88,7 @@ function editor(id){
  return `<form id="catalog-form" class="catalog-form" method="dialog" data-edit-id="${safe(id||'')}"><div class="catalog-dialog-head"><span class="eyebrow">LAGERHAUS / ARTIKELSTAMM</span><button type="button" class="modal-close" data-catalog="close" aria-label="Schließen">${icon('x',20)}</button></div><h2 id="catalog-dialog-title">${editing?'Artikel bearbeiten':'Neuen Artikel erfassen'}</h2><p class="form-subtitle">Vier Pflichtangaben – alles Weitere ist optional.</p>
  <div class="catalog-form-grid"><label class="wide">Artikelname *<input required maxlength="160" name="name" value="${safe(x?.name)}" placeholder="z. B. WC-Reiniger"></label>
  <label>Kategorie *<select required name="categoryId">${catOptions}</select></label>
- <label>Bereich<select name="section">${options(['privat','arbeit','gemeinsam'],x?.section||'privat')}</select></label><label>Artikeltyp<select name="articleKind" id="article-kind">${ARTICLE_KINDS.map(([v,label])=>`<option value="${v}" ${v===(x?.articleKind||'reusable')?'selected':''}>${label}</option>`).join('')}</select></label>
+ <label>Bereich<select name="section">${options(['privat','arbeit','gemeinsam'],x?.section||preferredSection)}</select></label><label>Artikeltyp<select name="articleKind" id="article-kind">${ARTICLE_KINDS.map(([v,label])=>`<option value="${v}" ${v===(x?.articleKind||'reusable')?'selected':''}>${label}</option>`).join('')}</select></label>
  <label>Lagerort *<select name="locationId" id="catalog-location-choice"><option value="">Neuen Lagerort eingeben</option>${locOptions}</select></label>
  <label>Neuer Lagerort<input maxlength="100" name="locationName" placeholder="z. B. Keller / Regal A" value="${location?'':'Garage'}"></label>
  <label>Menge *<input type="number" name="quantity" min="0" max="1000000000" step="0.001" required value="${qty}" ${editing?'readonly title="Mengen nur über Lager / Bestandsführung buchen"':''}>${editing?'<small class="catalog-quantity-note">Bestand nur unter Lager → Bestandsführung ändern.</small>':''}</label>

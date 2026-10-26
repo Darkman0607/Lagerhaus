@@ -69,3 +69,14 @@ Repository: https://github.com/Darkman0607/Lagerhaus
 Pages: https://darkman0607.github.io/Lagerhaus/ (nur wenn Pages in GitHub unter Settings → Pages → Deploy from branch → main / root aktiviert wurde). Chrome auf Android: Menü → „App installieren“ oder „Zum Startbildschirm hinzufügen“.
 
 **U07 ist umgesetzt:** Artikelübersicht, Suche, Filter und Sortierung. U09: 3D-Lageransicht. U10: erster stabiler Release mit überprüfter Backup- und Wiederherstellung.
+
+
+## U10 Release Candidate · V1.0.0-rc.1
+
+Das Projekt enthält jetzt eine **vollständige lokale Datensicherung** unter **Mehr → Backup herunterladen**. Der JSON-Export umfasst alle neun IndexedDB-Datenbereiche, einschließlich Medien und Bild-Bytes. SHA-256 erkennt nachträgliche Änderungen; es handelt sich **nicht** um eine verschlüsselte Datei. Dateien daher geschützt aufbewahren. Bevor du Browserdaten löschst, exportiere und prüfe einen Backup-Download.
+
+**Import:** Unter Mehr die `.json`-Datei auswählen. Daten und Checksumme werden vor dem Import geprüft. Anschließend eine neue Sicherheitskopie des aktuell gespeicherten Bestands herunterladen und deren Speicherung ausdrücklich bestätigen; erst danach ist Restore freigegeben. Alle Stores werden in **einer** IndexedDB-Transaktion ersetzt. Ein fehlschlagender Import darf keine Teildaten übernehmen. Der Import ersetzt vollständig, er führt Daten nicht zusammen. Exportdateien sind auf 150 MB begrenzt. Foto- und Lagerdaten bleiben lokal.
+
+**Ersteinrichtung:** Standardbereich Privat / Arbeit / Gemeinsam und optionalen Lagerort festlegen. Keine erzwungenen Demoartikel; neues Lager bleibt leer nutzbar. **Updates:** Im Menü Mehr können Service-Worker-Updates geprüft und bewusst aktiviert werden. Bei App-Wechsel bleiben die IndexedDB-Stores bestehen, sofern Nutzer/Brower sie nicht separat löschen.
+
+**QA-Status:** elf automatisierte Node-Testsuiten und Syntaxkontrolle bestanden. Die reale lokale Chromium-Ausführung wurde mit `net::ERR_BLOCKED_BY_ADMINISTRATOR` blockiert. Deshalb sind Live-GitHub-Pages, echte Android-Bedienung, PWA-Installation, Offline-Neustart und ein echter Browser-Backup/Restore-Durchlauf **noch offen**. Version `1.0.0-rc.1` ist ausdrücklich eine **Vorabversion**, keine freigegebene stabile 1.0.0.
