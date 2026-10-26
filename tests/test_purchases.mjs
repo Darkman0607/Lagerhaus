@@ -45,6 +45,14 @@ await archivePurchase(free.id);assert.equal((await repository.summary()).openPur
 assert.equal((await repository.purchases()).find(p=>p.id===free.id).status,'archived');
 assert.equal((await shoppingData()).suggestions.filter(a=>a.id===article.id).length,1);
 let markup=await shoppingView();assert.match(markup,/Meine Einkaufsliste/);assert.match(markup,/Automatisch nachkaufen/);assert.match(markup,/data-shopping-action="suggest"/);assert.match(markup,/Wieder öffnen/);
+// F03: verify filter controls without needing a live browser.
+const {handleShoppingFilter}=await import('../src/views/shopping.js');
+const rows=[{dataset:{status:'open',area:'privat',priority:'dringend',query:'kaffee'},hidden:false},{dataset:{status:'open',area:'arbeit',priority:'normal',query:'reiniger'},hidden:false}];
+const empty={hidden:true};globalThis.document={querySelectorAll:()=>rows,getElementById:()=>empty};
+handleShoppingFilter({target:{id:'u08-area',value:'privat'}});assert.equal(rows[0].hidden,false);assert.equal(rows[1].hidden,true);
+handleShoppingFilter({target:{id:'u08-priority',value:'normal'}});assert.equal(rows[0].hidden,true);assert.equal(empty.hidden,false);
+handleShoppingFilter({target:{id:'u08-priority',value:'dringend'}});assert.equal(rows[0].hidden,false);
+delete globalThis.document;
 // Package booking: multiply only packaged content, never add planned amount again.
 const packaged=await repository.addArticle({name:'Reiniger',unit:'ml',minQuantity:1});
 const db=await repository.ready();await new Promise((resolve,reject)=>{const tx=db.transaction(['articles'],'readwrite');const r=tx.objectStore('articles').get(packaged.id);r.onsuccess=()=>tx.objectStore('articles').put({...r.result,packageSize:750,packageUnit:'ml'});tx.oncomplete=resolve;tx.onabort=()=>reject(tx.error);});
